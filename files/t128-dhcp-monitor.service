@@ -1,0 +1,11 @@
+[Unit]
+Description=Service to monitor 128T DHCP address changes
+After=128T.service
+
+[Service]
+ExecStart=/usr/sbin/t128-dhcp-monitor
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

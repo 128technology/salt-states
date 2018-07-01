@@ -1,0 +1,157 @@
+#!/usr/bin/python
+import functools
+import json
+import logging
+import os
+import pyinotify
+import salt.config
+import salt.loader
+import time
+
+INITIAL_MONITOR_PATH = '/var/lib'
+T128_LIB_DIR = '/var/lib/128technology'
+CONFIG_FILE = '/var/lib/128technology/t128-running.xml'
+DHCP_LEASE_DIRECTORY = '/var/lib/128technology/dhcp'
+GLOBAL_INIT_PATH = '/etc/128technology/global.init'
+LOG_DIRECTORY = '/var/log/128technology'
+
+if not os.path.exists(LOG_DIRECTORY):
+    os.makedirs(LOG_DIRECTORY)
+logger = logging.getLogger(__name__)
+handler = logging.FileHandler('{0}/dhcp-check.log'.format(LOG_DIRECTORY))
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+class TrackPath(pyinotify.ProcessEvent):
+  target_path = ''
+  path_exists = False
+  def my_init(self, path):
+    self.target_path = path
+    if os.path.exists(path):
+      self.path_exists = True
+  def process_IN_CREATE(self, event):
+    if event.pathname == self.target_path:
+      self.path_exists = True
+
+class DhcpEventHandler(pyinotify.ProcessEvent):
+    leases = {}
+    def process_IN_CREATE(self, event):
+        logger.debug("{0} was created".format(event.pathname))
+        _read_lease(event.pathname)
+
+def _read_lease(file):
+    # Wait a few seconds to make sure the file is fully written
+    time.sleep(3)
+    logger.debug("reading {0}".format(file))
+    try:
+        with open(file) as lease_file:
+            lease = json.load(lease_file)
+        try:
+            resolution_state = lease['dhcp-client-info']['resolution-state']
+            if resolution_state == 'resolved':
+                address = lease['dhcp-client-info']['assigned-ip-address']
+                interface = file.split('/')[-1]
+                _check_lease(interface, address)
+            else:
+                logger.info("Lease for {0} was unresolved".format(file))
+        except KeyError,IOError:
+            logger.error("Issue collecting data from file {0}".format(file))
+    except ValueError:
+        logger.error("Could not parse JSON in file {0}".format(file))
+
+def _check_lease(interface, address):
+    logger.debug("checking lease for {0}".format(interface))
+    try:
+        previous_address = leases[interface]
+        if (previous_address != address):
+            logger.info("The address for {0} changed from {1} to {2}".format(interface, previous_address, address))
+            leases[interface] = address
+            _notify_master(delete=previous_address)
+        else:
+            logger.debug("The lease for {0} did not change".format(interface))
+    except KeyError:
+        leases[interface] = address
+        _notify_master()
+
+def _notify_master(**kwargs):
+    delete = None
+    if 'delete' in kwargs:
+      delete = kwargs['delete']
+    try:
+        with open(GLOBAL_INIT_PATH) as init_file:
+            global_init = json.load(init_file)
+        try:
+             router_name = global_init['init']['routerName']
+             data = { 'router_name' : router_name, 'leases' : leases, 'delete' : delete }
+             logger.debug("Sending event to salt master with data: %s", data)
+             __salt__['event.send']('t128_router/node/dhcp-address-info', data)
+        except KeyError,IOError:
+            logger.error("Unable to notify master, could not get routerName from global.init")
+    except ValueError:
+        logger.error("Unable to notify master, could not parse global.init")
+
+def _initialize_leases():
+    if os.path.isdir(DHCP_LEASE_DIRECTORY):
+        files = os.listdir(DHCP_LEASE_DIRECTORY)
+        for file in files:
+            if '.' not in file:
+                _read_lease(DHCP_LEASE_DIRECTORY + '/' + file)
+
+def loop_until_path_exists(notifier,handler):
+  if handler.path_exists:
+    return True
+
+# Setup Salt objects
+__opts__ = salt.config.minion_config('/etc/salt/minion')
+__grains__ = salt.loader.grains(__opts__)
+__opts__['grains'] = __grains__
+__utils__ = salt.loader.utils(__opts__)
+__salt__ = salt.loader.minion_mods(__opts__, utils=__utils__)
+
+leases = {}
+
+mask = pyinotify.IN_CREATE
+logger.info("Starting 128T DHCP monitor service")
+
+# Monitor for the /var/lib/128technology directory to be created
+watch_t128_lib = pyinotify.WatchManager()
+t128_lib_handler = TrackPath(path=T128_LIB_DIR)
+loop_until_t128_lib_func = functools.partial(loop_until_path_exists, handler=t128_lib_handler)
+t128_lib_notifier = pyinotify.Notifier(watch_t128_lib, default_proc_fun=t128_lib_handler)
+watch_t128_lib.add_watch(INITIAL_MONITOR_PATH, mask)
+t128_lib_notifier.loop(callback=loop_until_t128_lib_func)
+logger.info("128T library directory exists, continuing")
+
+# Monitor for the config file to be present
+watch_config = pyinotify.WatchManager()
+t128_config_handler = TrackPath(path=CONFIG_FILE)
+loop_until_config_func = functools.partial(loop_until_path_exists, handler=t128_config_handler)
+t128_config_notifier = pyinotify.Notifier(watch_config, default_proc_fun=t128_config_handler)
+watch_config.add_watch(T128_LIB_DIR, mask)
+t128_config_notifier.loop(callback=loop_until_config_func)
+logger.info("128T Config exists, sending initial event to master")
+# This will setup any static adjacencies
+_notify_master()
+
+
+# Monitor for the leases directory to be present
+watch_lease_dir = pyinotify.WatchManager()
+lease_dir_handler = TrackPath(path=DHCP_LEASE_DIRECTORY)
+loop_until_lease_dir_func = functools.partial(loop_until_path_exists, handler=lease_dir_handler)
+lease_dir_notifier = pyinotify.Notifier(watch_lease_dir, default_proc_fun=lease_dir_handler)
+watch_lease_dir.add_watch(T128_LIB_DIR, mask)
+lease_dir_notifier.loop(callback=loop_until_lease_dir_func)
+logger.info("128T DHCP lease directory exists, starting main loop")
+
+# Read the initial lease file and send the info to the master
+_initialize_leases()
+if leases:
+  _notify_master()
+
+dhcp_handler = DhcpEventHandler()
+watch_leases = pyinotify.WatchManager()
+watch_leases.add_watch(DHCP_LEASE_DIRECTORY, mask)
+dhcp_notifier = pyinotify.Notifier(watch_leases, default_proc_fun=dhcp_handler)
+dhcp_notifier.loop()

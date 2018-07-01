@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#Setup IP on KNI Bridged Interface to act as DHCP Server Address
+#Then startup DHCP Server Daemon dhcpd
+#Source File for DHCP Setup Variables - /etc/sysconfig/128T-dhcp-server-setup-vars
+DHCP_VARS_FILE=/etc/sysconfig/128T-dhcp-server-setup-vars
+if [ -r $DHCP_VARS_FILE ] ; then
+  source $DHCP_VARS_FILE
+else
+  echo "ERROR: File $DHCP_VARS_FILE not found or not readable"
+  exit 1
+fi
+##Determine full path of current script
+scriptPath=$(dirname "$(readlink -f "$0")")
+##Directory containing script is the name of the target interface
+targetInterface=${scriptPath##*/}
+##Check if the target interface is configured to be a member of a bridge
+if [ -r /sys/class/net/"$targetInterface"/brport/bridge/uevent ] ; then
+  ## the bridge uevent file declares a Bridge, to what interface it belongs, and the device ID
+  source /sys/class/net/$targetInterface/brport/bridge/uevent
+  LISTEN_IP=DHCP_LISTENER_$targetInterface
+  LISTEN_MASK=DHCP_MASK_$targetInterface
+  ## Assign and IP address to the Dyamically created Bridge Interface.
+  ## Because of how this bridge interface is created, an ifcfg file in /etc/sysconfig/network-scripts won't work for it
+  /sbin/ip address add "${!LISTEN_IP}"/"${!LISTEN_MASK}" dev "$INTERFACE"
+  ## restart the dhcpd service
+  systemctl restart dhcpd
+  ## if other interfaces are to be joined to the bridge, join them as well
+  if [[ -v BRIDGE_INTERFACES_$targetInterface ]] ; then
+    LISTEN_BRIDGE=BRIDGE_INTERFACES_$targetInterface[@]
+    for bridge_int in "${!LISTEN_BRIDGE}"
+      do
+        brctl addif "$INTERFACE" "$bridge_int"
+    done
+  fi
+else
+  echo "ERROR: Target Interface $targetInterface is not in a bridge - Cannot initialize"
+  exit 1
+fi

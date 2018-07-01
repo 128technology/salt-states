@@ -1,0 +1,19 @@
+# .bash_profile
+
+# Get the aliases and functions
+if [ -f ~/.bashrc ]; then
+        . ~/.bashrc
+fi
+
+# User specific environment and startup programs
+
+PATH=$PATH:$HOME/.local/bin:$HOME/bin
+
+export PATH
+# History Settings
+HISTSIZE=20000
+HISTCONTROL=ignoredups:erasedups
+HISTTIMEFORMAT='%F %T '
+ignore="clear:exit:shutdown*:reboot:systemctl poweroff*:systemctl reboot*"
+ignore="$ignore:sudo clear:sudo exit:sudo shutdown*:sudo reboot:sudo systemctl poweroff*:sudo systemctl reboot*"
+HISTIGNORE=$ignore
