@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 '''
-:maintainer: Thomas Sullivan (tsullivan@128technology.com)
+:maintainer: Lane Shields (lshields@128technology.com)
 '''
 
 from __future__ import absolute_import
@@ -49,3 +49,12 @@ def get_network_address(ipaddr, netmask):
     '''
     net = ipaddress.ip_network('{0}/{1}'.format(ipaddr, netmask), strict=False)
     return str(net.network_address)
+
+def get_address_as_decimal(addr):
+    '''
+    Return the decimal representation of an IP address
+
+    This function is primarily used to generate a unique mark to identify traffic
+    for a particular IPSec tunnel using the remote address.
+    '''
+    return int(ipaddress.ip_address(addr))
