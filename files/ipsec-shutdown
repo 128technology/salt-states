@@ -1,0 +1,3 @@
+source /etc/sysconfig/128T-ipsec
+systemctl stop 128t-ipsec
+ip netns del $IPSEC_NAMESPACE

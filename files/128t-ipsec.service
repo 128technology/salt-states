@@ -1,0 +1,34 @@
+[Unit]
+Description=Internet Key Exchange (IKE) Protocol Daemon for IPsec running in 128T managed namespace
+Wants=network-online.target
+Documentation=man:ipsec(8) man:pluto(8) man:ipsec.conf(5)
+
+[Service]
+Type=notify
+Restart=always
+# backwards compatible with plutorestartoncrash=no
+#RestartPreventExitStatus=137 143 SIGTERM SIGKILL
+# Set WatchdogSec to the amount of time (in seconds) that systemd will wait
+# before restarting an unresponsive pluto.
+# EVENT_SD_WATCHDOG updates the heartbeat every 15 seconds, recommended values
+# are 60, 90, 120. WatchdogSec=0 disables the action
+NotifyAccess=all
+WatchdogSec=200
+EnvironmentFile=/etc/sysconfig/128T-ipsec
+# Check configuration file
+ExecStartPre=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/addconn --config /etc/ipsec.conf --checkconfig
+# Check for kernel modules
+ExecStartPre=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/_stackmanager start
+# Check for nss database status and migration
+ExecStartPre=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/sbin/ipsec --checknss
+# Check for nflog setup
+ExecStartPre=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/sbin/ipsec --checknflog
+# Start the actual IKE daemon
+ExecStart=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/pluto --leak-detective --config /etc/ipsec.conf --nofork
+ExecStop=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/whack --shutdown
+ExecStopPost=/sbin/ip netns exec $IPSEC_NAMESPACE /sbin/ip xfrm policy flush
+ExecStopPost=/sbin/ip netns exec $IPSEC_NAMESPACE /sbin/ip xfrm state flush
+ExecStopPost=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/sbin/ipsec --stopnflog
+ExecReload=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/whack --listen
+
+[Install]
