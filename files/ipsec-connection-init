@@ -1,0 +1,29 @@
+#!/bin/bash
+KNI_NAME=$1
+source /etc/sysconfig/128T-ipsec
+source /etc/sysconfig/network-scripts/ifcfg-$1
+
+# create IPSec namespace if it doesn't exist
+if [ ! -e "/var/run/netns/$IPSEC_NAMESPACE" ]; then
+  echo "$IPSEC_NAMESPACE namespace does not exist...creating it."
+  ip netns add $IPSEC_NAMESPACE
+  ip netns exec $IPSEC_NAMESPACE ip link set lo up
+  echo "$IPSEC_NAMESPACE created."
+  echo "Setting ip_forwarding in namespace $IPSEC_NAMESPACE."
+  ip netns exec $IPSEC_NAMESPACE sysctl -w net.ipv4.ip_forward=1
+  echo "Disabling send_redirects in namespace $IPSEC_NAMESPACE."
+  ip netns exec $IPSEC_NAMESPACE sysctl -w net.ipv4.conf.all.send_redirects=0
+  echo "Disabling accept_redirects in namespace $IPSEC_NAMESPACE."
+  ip netns exec $IPSEC_NAMESPACE sysctl -w net.ipv4.conf.all.accept_redirects=0
+  echo "Disabling Reverse Packet Filtering for namespace $IPSEC_NAMESPACE."
+  ip netns exec $IPSEC_NAMESPACE sysctl -w net.ipv4.conf.all.rp_filter=0
+fi
+
+# set up KNI if it exists in the default namespace
+if [ -d "/sys/devices/virtual/net/$KNI_NAME" ]; then
+  echo "$KNI_NAME found in default namespace."
+  echo "Moving $KNI_NAME to $IPSEC_NAMESPACE namespace."
+  ip link set $KNI_NAME netns $IPSEC_NAMESPACE
+  ip netns exec $IPSEC_NAMESPACE ip a add $IPADDR/$PREFIX dev $KNI_NAME
+  ip netns exec $IPSEC_NAMESPACE ip l set $KNI_NAME up
+fi

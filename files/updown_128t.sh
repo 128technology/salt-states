@@ -1,0 +1,792 @@
+#! /bin/sh
+#
+# 128T updown script for use with NETKEY(XFRM)
+# Modifications from the default updown script with support for iproute2
+# table lookups to associate tunnel traffic with a particular KNI interface
+#
+# Copyright (C) 2018 Lane Shields <lshields@128technology.com>
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at your
+# option) any later version.  See <http://www.fsf.org/copyleft/gpl.txt>.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+
+test ${IPSEC_INIT_SCRIPT_DEBUG} && set -v -x
+
+LC_ALL=C
+export LC_ALL
+
+# Things that this script gets (from ipsec_pluto(8) man page)
+#
+#
+#       PLUTO_VERSION
+#               indicates  what  version of this interface is being
+#               used.  This document describes version  1.1.   This
+#               is upwardly compatible with version 1.0.
+#
+#       PLUTO_VERB
+#               specifies the name of the operation to be performed
+#               (prepare-host, prepare-client, up-host, up-client,
+#               down-host, or down-client).  If the address family
+#               for security gateway to security gateway
+#               communications is IPv6, then a suffix of -v6 is added
+#               to the verb.
+#
+#       PLUTO_CONNECTION
+#               is the name of the  connection  for  which  we  are
+#               routing.
+#
+#       PLUTO_CONN_POLICY
+#               the policy of the connection, as in:
+#               RSASIG+ENCRYPT+TUNNEL+PFS+DONTREKEY+OPPORTUNISTIC
+#               +failureDROP+lKOD+rKOD
+#
+#       PLUTO_NEXT_HOP
+#               is the next hop to which packets bound for the peer
+#               must be sent.
+#
+#       PLUTO_INTERFACE
+#               is the name of the ipsec interface to be used.
+#
+#       PLUTO_ME
+#               is the IP address of our host.
+#
+#       PLUTO_METRIC
+#               is the metric to set for the route
+#
+#       PLUTO_MTU
+#               is the mtu to set for the route
+#
+#       PLUTO_MY_CLIENT
+#               is the IP address / count of our client subnet.  If
+#               the  client  is  just  the  host,  this will be the
+#               host's own IP address / mask (where max is  32  for
+#               IPv4 and 128 for IPv6).
+#
+#       PLUTO_MY_CLIENT_NET
+#               is the IP address of our client net.  If the client
+#               is just the host, this will be the  host's  own  IP
+#               address.
+#
+#       PLUTO_MY_CLIENT_MASK
+#               is  the  mask for our client net.  If the client is
+#               just the host, this will be 255.255.255.255.
+#
+#       PLUTO_MY_SOURCEIP
+#               if non-empty, then the source address for the route will be
+#               set to this IP address.
+#
+#       PLUTO_MY_PROTOCOL
+#               is the protocol  for this  connection.  Useful  for
+#               firewalling.
+#
+#       PLUTO_MY_PORT
+#               is the port. Useful for firewalling.
+#
+#       PLUTO_PEER
+#               is the IP address of our peer.
+#
+#       PLUTO_PEER_CLIENT
+#               is the IP address / count of the peer's client subnet.
+#               If the client is just the peer, this will be
+#               the peer's own IP address / mask (where max  is  32
+#               for IPv4 and 128 for IPv6).
+#
+#       PLUTO_PEER_CLIENT_NET
+#               is the IP address of the peer's client net.  If the
+#               client is just the peer, this will  be  the  peer's
+#               own IP address.
+#
+#       PLUTO_PEER_CLIENT_MASK
+#               is  the  mask  for  the  peer's client net.  If the
+#               client   is   just   the   peer,   this   will   be
+#               255.255.255.255.
+#
+#       PLUTO_PEER_PROTOCOL
+#               is  the  protocol  set  for  remote  end  with port
+#               selector.
+#
+#       PLUTO_PEER_PORT
+#               is the peer's port. Useful for firewalling.
+#
+#       PLUTO_CFG_CLIENT=0|1
+#               is MODECFG or IKEv2 Config client.
+#
+#       PLUTO_CFG_SERVER=0|1
+#               is MODECFG or IKEv2 Config server.
+#
+#       PLUTO_CONNECTION_TYPE
+#
+#       PLUTO_CONN_ADDRFAMILY
+#               is the family type, "ipv4" or "ipv6"
+#
+#       PLUTO_PROTO_STACK
+#               is the local IPsec kernel stack used, eg KLIPS, NETKEY,
+#               MAST, NOSTACK
+#
+#       PLUTO_IS_PEER_CISCO=0|1
+#               remote server type is cisco. Add support for cisco extensions
+#               when used with xauth.
+#
+#       PLUTO_NM_CONFIGURED=0|1
+#               is NetworkManager used for resolv.conf update
+#
+#       PLUTO_SA_REQID
+#               When using KAME or XFRM/NETKEY, the IPsec SA reqid base value.
+#               ESP/AH out is base, ESP/AH in = base + 1
+#               IPCOMP is base + 2 plus for inbound + 1
+#
+#       PLUTO_SA_TYPE
+#               The type of IPsec SA (ESP or AH)
+#
+#       PLUTO_USERNAME
+#               The username (XAUTH or GSSAPI) that was authenticated (if any)
+#               for this SA
+#
+#       XAUTH_FAILED
+#               If xauthfail=soft this will be set to 1 if XAUTH authentication
+#               failed. If xauthfail=hard, the updown scripts never run.
+#
+#       CONNMARK
+#               If mark= is set on the connection, this variable will be
+#               set with the value. It can be used for iptables or VTI.
+#
+#       VTI_IFAC=iface
+#               Name of VTI interface to create
+#
+#       VTI_ROUTING=yes|no
+#               Whether or not to perform ip rule and ip route commands
+#               covering the IPsec SA address ranges to route those packets
+#               into the VTI_IFACE interface. This should be enabled unless
+#               the IPsec SA covers 0.0.0.0/0 <-> 0.0.0.0/0
+#
+#       VTI_SHARED=yes|no
+#               Whether or not more conns (or instances) share a VTI device.
+#               If not shared, the VTI device is deleted when tunnel goes down.
+#
+#       SPI_IN / SPI_OUT
+#               The inbound and outbound SPI's of the connection.
+
+# rpm based systems
+if [ -f /etc/sysconfig/pluto_updown ]; then
+    . /etc/sysconfig/pluto_updown
+# deb based systems
+elif [ -f /etc/default/pluto_updown ]; then
+    . /etc/default/pluto_updown
+fi
+
+BACKUP_RESOLV_CONF=/run/pluto/libreswan-resolv-conf-backup
+ETC_RESOLV_CONF=/etc/resolv.conf
+MAX_CIDR=32     # for ipv4
+[ "${PLUTO_CONN_ADDRFAMILY}" = ipv6 ] &&  MAX_CIDR=128
+SCOPE=50        # Use scope 50 to verify ip was added by addsource()
+
+# Ignore parameter custom
+if [ "${1}" = "custom" ]; then
+    shift
+fi
+
+while [ $# -gt 0 ]; do
+    case ${1} in
+        --route)
+            case ${2} in
+                [Yy]*)
+                    ROUTE=yes
+                    ;;
+                *)
+                    ROUTE=
+                    ;;
+            esac
+            shift; shift
+            ;;
+        --iproute)
+            IPRARGS="${2}"
+            shift; shift
+            ;;
+        --kni)
+            KNI_NAME="${2}"
+            source /etc/sysconfig/network-scripts/ifcfg-$KNI_NAME
+            shift; shift
+            ;;
+        *)
+            echo "$0: Unknown argument \"${1}\"" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# utility functions for route manipulation
+# Meddling with this stuff should not be necessary and requires great care.
+uproute() {
+    doproxyarp add
+    doroute replace
+    ip route flush cache
+}
+
+downroute() {
+    doroute del
+    ip route flush cache
+    doproxyarp delete
+}
+
+downrule() {
+    if [ -n "${PLUTO_MY_SOURCEIP}" -a 0${PLUTO_IS_PEER_CISCO} -eq 1 ]; then
+        doroute del
+        ip route flush cache
+    fi
+}
+
+updateresolvconf() {
+    local domain
+    local nameserver
+    local new_nameserver
+    local new_resolv_conf
+    local new_search
+    local orig_domain
+    local orig_nameserver
+    local rc
+    rc=0
+    if [ 0${PLUTO_CFG_CLIENT} -eq 0 ]; then
+        return ${rc}
+    fi
+    if [ -n "$(pidof unbound)" -a \
+        -n "${PLUTO_PEER_DNS_INFO}" -a \
+        -n "${PLUTO_PEER_DOMAIN_INFO}" ]
+    then
+        for domain in ${PLUTO_PEER_DOMAIN_INFO}; do
+            echo "updating local nameserver for ${domain} with ${PLUTO_PEER_DNS_INFO}"
+            unbound-control forward_add ${domain} \
+                ${PLUTO_PEER_DNS_INFO}
+            unbound-control flush_zone ${domain}
+            unbound-control flush_requestlist
+        done
+        rc=$?
+    elif [ 0${PLUTO_NM_CONFIGURED} -eq 0 -a \
+        -n "${PLUTO_PEER_DNS_INFO}" ]
+    then
+        echo "updating resolvconf"
+
+        if [ ! -e "${ETC_RESOLV_CONF}" ]; then
+            echo "resolv.conf does not exist, so doing nothing"
+            return 0
+        fi
+
+        if [ -e "${BACKUP_RESOLV_CONF}" ]; then
+            if grep -q Libreswan "${ETC_RESOLV_CONF}"; then
+                echo "Current resolv.conf is generated by Libreswan, and backup resolv.conf already exists, so doing nothing"
+                return 0
+            else
+                echo "backup resolv.conf exists, but current resolv.conf is not generated by Libreswan"
+            fi
+        fi
+
+        rm -f -- "${BACKUP_RESOLV_CONF}"
+        cp -- "${ETC_RESOLV_CONF}" "${BACKUP_RESOLV_CONF}"
+
+        new_resolv_conf="# Generated by Libreswan (IPsec)"
+
+        orig_domain="$(grep ^domain "${ETC_RESOLV_CONF}" 2>/dev/null | \
+            awk '{ print $2 }')"
+
+        orig_search=$(grep ^search "${ETC_RESOLV_CONF}" 2>/dev/null | \
+            sed 's/^search[[:space:]]\+//;s/[[:space:]]*\#.*//')
+
+        if [ -n "${orig_domain}" ]; then
+            new_resolv_conf="${new_resolv_conf}
+domain ${orig_domain}"
+        fi
+
+        if [ -n "${orig_search}" ]; then
+            new_search="${orig_search}"
+        elif [ -n "${orig_domain}" ]; then
+            new_search="${orig_domain}"
+        fi
+
+        if [ -n "${PLUTO_PEER_DOMAIN_INFO}" ]; then
+            if [ -n "${new_search}" ]; then
+                new_search=$(echo $(echo "${new_search} ${PLUTO_PEER_DOMAIN_INFO}" | tr [:space:] '\n' | awk '!a[$0]++'))
+            else
+                new_search="${PLUTO_PEER_DOMAIN_INFO}"
+            fi
+        fi
+
+        if [ -n "${new_search}" ]; then
+            new_resolv_conf="${new_resolv_conf}
+search ${new_search}"
+        fi
+
+        orig_nameserver=$(grep --max-count 1 ^nameserver "${ETC_RESOLV_CONF}" | \
+            sed 's/^nameserver[[:space:]]\+//;s/[[:space:]]*\#.*//')
+        if [ -n "${orig_nameserver}" ]; then
+            new_nameserver=$(echo $(echo "${PLUTO_PEER_DNS_INFO} ${orig_nameserver}" | tr [:space:] '\n' | awk '!a[$0]++'))
+        else
+            new_nameserver="${PLUTO_PEER_DNS_INFO}"
+        fi
+
+        for nameserver in ${new_nameserver}; do
+            new_resolv_conf="${new_resolv_conf}
+nameserver ${nameserver}"
+        done
+
+        rm -f -- "${ETC_RESOLV_CONF}"
+        echo "${new_resolv_conf}" > "${ETC_RESOLV_CONF}"
+        rc=$?
+    fi
+    return ${rc}
+}
+
+restoreresolvconf() {
+    local domain
+    local rc
+    rc=0
+    if [ 0${PLUTO_CFG_CLIENT} -eq 0 ]; then
+        return ${rc}
+    fi
+    if [ -n "$(pidof unbound)" -a \
+        -n "${PLUTO_PEER_DNS_INFO}" -a \
+        -n "${PLUTO_PEER_DOMAIN_INFO}" ]
+    then
+        for domain in ${PLUTO_PEER_DOMAIN_INFO}; do
+            echo "flushing local nameserver of ${domain}"
+            unbound-control forward_remove ${domain}
+            unbound-control flush_zone ${domain}
+            unbound-control flush_requestlist
+        done
+        rc=$?
+    elif [ 0${PLUTO_NM_CONFIGURED} -eq 0 ]; then
+        echo "restoring resolvconf"
+        if [ ! -e "${BACKUP_RESOLV_CONF}" ]; then
+            echo "Problem in restoring the resolv.conf, as there is no backup file"
+            return 2
+        fi
+
+        if grep -q Libreswan "${ETC_RESOLV_CONF}" 2>/dev/null; then
+            cp -- "${BACKUP_RESOLV_CONF}" "${ETC_RESOLV_CONF}"
+        else
+            echo "Current resolv.conf is not generated by Libreswan, so doing nothing"
+        fi
+
+        rm -f -- "${BACKUP_RESOLV_CONF}"
+        rc=0
+    fi
+    return ${rc}
+}
+
+notifyNM() {
+    # This will be called whenever a connection is established or
+    # fails to establish (either phase 1, xauth phase, or phase 2)
+    # or whenever an already established connection is being terminated.
+    # This will send a singal to NetworkManager over dbus so that NM
+    # can keep track of the coonnections.
+
+    if [ 0${PLUTO_NM_CONFIGURED} -eq 1 ]; then
+        echo "sending $1 signal to NetworkManager"
+        libreswan_reason=$1
+        export libreswan_reason
+        export PLUTO_PEER_DOMAIN_INFO
+        export PLUTO_PEER_DNS_INFO
+        export PLUTO_PEER_BANNER
+        export PLUTO_MY_SOURCEIP
+        export PLUTO_PEER
+        [ -x /usr/libexec/nm-libreswan-service-helper ] && \
+            /usr/libexec/nm-libreswan-service-helper
+    fi
+    return 0
+}
+
+addsource() {
+    local interface
+    local st
+    interface=lo
+    st=0
+    if [ -z "${PLUTO_MY_SOURCEIP}" ]; then
+        return ${st}
+    fi
+    # check if given sourceip is local and add as alias if not
+    if ! ip -o route get ${PLUTO_MY_SOURCEIP} | grep -q ^local; then
+        if [ -n "${VTI_IFACE}" -a "${VTI_ROUTING}" = yes ]; then
+            interface="${VTI_IFACE}"
+        fi
+        it="ip addr add ${PLUTO_MY_SOURCEIP}/${MAX_CIDR} dev ${interface} scope ${SCOPE}"
+        oops="$(eval ${it} 2>&1)"
+        st=$?
+        if [ -z "${oops}" -a ${st} -ne 0 ]; then
+            oops="silent error, exit status ${st}"
+        fi
+        case "${oops}" in
+            'RTNETLINK answers: File exists'*)
+                # should not happen, but ... ignore if the
+                # address was already assigned on interface
+                oops=""
+                st=0
+                ;;
+        esac
+        if [ -n "${oops}" -o ${st} -ne 0 ]; then
+            echo "$0: addsource \"${it}\" failed (${oops})" >&2
+        fi
+    fi
+    return ${st}
+}
+
+delsource() {
+    local interface
+    local st
+    interface=lo
+    st=0
+    if [ -z "${PLUTO_MY_SOURCEIP}" ]; then
+        return ${st}
+    fi
+    # Remove source ip if it's not used any more.
+    if [ $(ip -o route list src ${PLUTO_MY_SOURCEIP} | wc -l) -eq 0 ]; then
+        if [ -n "${VTI_IFACE}" -a "${VTI_ROUTING}" = yes ]; then
+            interface="${VTI_IFACE}"
+        fi
+        # If there is no ip we just return
+        if ! ip -o addr list dev ${interface} scope ${SCOPE} | \
+            grep -q ${PLUTO_MY_SOURCEIP}/${MAX_CIDR}
+        then
+            return ${st}
+        fi
+        it="ip addr del ${PLUTO_MY_SOURCEIP}/${MAX_CIDR} dev ${interface}"
+        oops="$(eval ${it} 2>&1)"
+        st=$?
+        if [ -z "${oops}" -a ${st} -ne 0 ]; then
+            oops="silent error, exit status ${st}"
+        fi
+        case "${oops}" in
+            'RTNETLINK answers: File exists'*)
+                # should not happen, but ... ignore if the
+                # address was already assigned on interface
+                oops=""
+                st=0
+                ;;
+            'RTNETLINK answers: Cannot assign'*)
+                # Address is not there to remove or is there with different
+                # netmask and in that case we must not remove it so we ignore
+                # the error.
+                oops=""
+                st=0
+                ;;
+        esac
+        if [ -n "${oops}" -o ${st} -ne 0 ]; then
+            echo "$0: delsource \"${it}\" failed (${oops})" >&2
+        fi
+    fi
+    return ${st}
+}
+
+doproxyarp() {
+    # Check if client has a single ip only client net
+    if [ ${PLUTO_PEER_CLIENT#*/} = ${MAX_CIDR} ]; then
+        # Skip OE special connections
+        if [ ${PLUTO_PEER_CLIENT_NET} = 0.0.0.0 -o \
+            ${PLUTO_PEER_CLIENT_NET} = "::" ]; then
+            return 0
+        fi
+        # check if client is routeable
+        if ip -o route get ${PLUTO_PEER_CLIENT_NET} | \
+            egrep -q -s -v " via |^local"; then
+            iface=$(ip -o route get ${PLUTO_PEER_CLIENT_NET} | \
+                awk '{print $3}')
+            if [ -r /sys/class/net/${iface}/address ]; then
+                macaddr=$(cat /sys/class/net/${iface}/address)
+            fi
+            # add/remove arp entry for the client on ethernet devices only
+            if [ -n "${macaddr}" ]; then
+                if [ "$1" = add ]; then
+                    ip neigh add proxy ${PLUTO_PEER_CLIENT_NET} dev ${iface} \
+                        lladdr ${macaddr} nud permanent
+                else
+                    ip neigh del proxy ${PLUTO_PEER_CLIENT_NET} dev ${iface}
+                fi
+            fi
+        fi
+    fi
+}
+
+doroute() {
+    st=0
+    # skip routing if it's not enabled or necessary
+    if [ -z "${PLUTO_MY_SOURCEIP}" -a \
+        -z "${PLUTO_MTU}" -a \
+        "${ROUTE}" != yes ]; then
+        return 0
+    fi
+    parms="${PLUTO_PEER_CLIENT}"
+    parms2=${IPRARGS}
+    # nexthop is not needed on ppp interfaces. unset it to make cases
+    # work, where left is set but no leftnexthop (e.g. left=%defaultroute)
+    if ip link show "${PLUTO_INTERFACE%:*}" | grep -q POINTOPOINT; then
+        POINTPOINT=yes
+    fi
+    # use nexthop if nexthop is not %direct and POINTPOINT is not set
+    if [ "${PLUTO_NEXT_HOP}" != "${PLUTO_PEER}" -a -z "${POINTPOINT}" ]; then
+        parms2="via ${PLUTO_NEXT_HOP}"
+    fi
+    # route via proper interface according to routing table
+    if [ "${1}" = "del" ]; then
+        peer_interface=$(ip -o route get ${PLUTO_PEER_CLIENT} | \
+            sed "s/^.*dev \([^ ]*\) .*/\1/")
+    else
+        peer_interface=$(ip -o route get ${PLUTO_NEXT_HOP} | \
+            sed "s/^.*dev \([^ ]*\) .*/\1/")
+    fi
+    if [ -n "${VTI_IFACE}" ]; then
+        addsource
+        peer_interface="${VTI_IFACE}"
+    fi
+    if [ -z "${peer_interface}" ]; then
+        peer_interface=${PLUTO_INTERFACE}
+    fi
+    parms2="${parms2} dev ${peer_interface%:*}${PLUTO_MTU:+ mtu ${PLUTO_MTU}}${PLUTO_METRIC:+ metric ${PLUTO_METRIC}} $IPROUTEARGS"
+
+    # make sure whe have sourceip locally in this machine
+    if [ "$1" = "replace" -a -n "${PLUTO_MY_SOURCEIP}" ]; then
+        addsource
+        # use sourceip as route default source
+        parms2="${parms2} src ${PLUTO_MY_SOURCEIP}"
+    fi
+
+    KNI_TABLE=$(echo $IPADDR | tr . '\n' | awk '{s = s*256 + $1} END{print s}')
+    # Add the table if it doesn't already exist
+    if [ $( ip rule list table ${KNI_TABLE} | wc -l ) -eq 0 ];then
+        ip rule add iif ${KNI_NAME} lookup ${KNI_TABLE}
+    fi
+    it="ip route $1 ${parms} ${parms2} table ${KNI_TABLE}"
+    oops="$(eval ${it} 2>&1)"
+    st=$?
+    if [ -z "${oops}" -a ${st} -ne 0 ]; then
+        oops="silent error, exit status ${st}"
+    fi
+    case "${oops}" in
+        'RTNETLINK answers: No such process'*)
+            # should not happen, but ... ignore if the
+            # route was already removed
+            oops=""
+            st=0
+            ;;
+    esac
+    if [ -n "${oops}" -o ${st} -ne 0 ]; then
+        echo "$0: doroute \"${it}\" failed (${oops})" >&2
+    fi
+    return ${st}
+}
+
+# TODO: We need to specify CIDR mask but our _MASK variables are in old school format
+# TODO: Exclude udp 4500 traffic
+addnflog() {
+    if [ -n "${NFLOG}" ]; then
+        iptables -I OUTPUT -m policy --dir out --pol ipsec \
+            -s ${PLUTO_MY_CLIENT} -d ${PLUTO_PEER_CLIENT} \
+            -j NFLOG --nflog-group ${NFLOG} --nflog-prefix ${PLUTO_CONNECTION}
+        iptables -I INPUT  -m policy --dir in --pol ipsec \
+            -s ${PLUTO_PEER_CLIENT} -d ${PLUTO_MY_CLIENT} \
+            -j NFLOG --nflog-group ${NFLOG} --nflog-prefix ${PLUTO_CONNECTION}
+    fi
+}
+
+delnflog() {
+    if [ -n "${NFLOG}" ]; then
+        iptables -D OUTPUT -m policy --dir out --pol ipsec \
+            -s ${PLUTO_MY_CLIENT} -d ${PLUTO_PEER_CLIENT} \
+            -j NFLOG --nflog-group ${NFLOG} --nflog-prefix ${PLUTO_CONNECTION}
+        iptables -D INPUT  -m policy --dir in --pol ipsec \
+            -s ${PLUTO_PEER_CLIENT} -d ${PLUTO_MY_CLIENT} \
+            -j NFLOG --nflog-group ${NFLOG} --nflog-prefix ${PLUTO_CONNECTION}
+    fi
+}
+
+addvtiiface() {
+    if [ -n "${VTI_IFACE}" ]; then
+        if [ -z "${CONNMARK_IN}" -o -z "${CONNMARK_OUT}" ]; then
+            echo "vti-interface option ignored because no mark was configured"
+        else
+            if [ ! -d "/proc/sys/net/ipv4/conf/${VTI_IFACE}" ]; then
+                # echo "creating vti interface"
+                vtipeer="${PLUTO_PEER}"
+                if [ "${PLUTO_CONN_KIND}" = CK_INSTANCE -o "${VTI_SHARED}" = "yes" ]; then
+                    vtipeer="0.0.0.0"
+                fi
+                ip tunnel add ${VTI_IFACE} mode vti local ${PLUTO_ME} \
+                    remote ${vtipeer} okey ${CONNMARK_OUT%/*} \
+                    ikey ${CONNMARK_IN%/*}
+                sysctl -w net.ipv4.conf.${VTI_IFACE}.disable_policy=1
+                sysctl -w net.ipv4.conf.${VTI_IFACE}.rp_filter=0
+                sysctl -w net.ipv4.conf.${VTI_IFACE}.forwarding=1
+                if [ -n "${VTI_IP}" ]; then
+                   ip addr add ${VTI_IP} dev ${VTI_IFACE}
+                fi
+                ip link set ${VTI_IFACE} up
+            else
+                # check there was no conflict if we are sharing - might be sensitive to /sbin/ip differences
+                if [ "${VTI_SHARED}" = yes ]; then
+                        #test: ip/ip remote 3.4.5.6 local 1.2.3.4 ttl inherit key 5
+                        cur="$(ip tun show ${VTI_IFACE})"
+                        new="${VTI_IFACE}: ip/ip  remote any  local ${PLUTO_ME}  ttl inherit  key ${CONNMARK_OUT%/*}"
+                        if [ "${cur}" != "${new}" ]; then
+                                echo "vti interface \"${VTI_IFACE}\" already exists with conflicting setting"
+                                echo "existing: ${cur}"
+                                echo "wanted  : ${new}"
+                        else
+                                # temp debug
+                                echo "vti interface already exists with identical parameters, OK"
+                        fi
+                else
+                        echo "vti interface \"${VTI_IFACE}\" already exists with conflicting setting (perhaps need vti-sharing=yes ?"
+                fi
+            fi
+        fi
+    fi
+}
+
+addvti() {
+    if [ -n "${VTI_IFACE}" ]; then
+        if [ -z "${CONNMARK_IN}" -o -z "${CONNMARK_OUT}" ]; then
+            echo "vti-interface option ignored because no mark was configured"
+        else
+            if [ "${VTI_ROUTING}" = yes ]; then
+                # We assume the KNI uses a /30 so we'll find the other address for the gateway
+                local last_octet=$(echo $IPADDR | cut -d '.' -f 4)
+                if [ $(($last_octet%2)) -eq 0 ]; then
+                    GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($last_octet - 1)))
+                else
+                    GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($last_octet + 1)))
+                fi
+
+                # We'll use iproute2 to create tables that guarantee our traffic goes where we wanted
+                # We will use the mark as a unique table lookup
+                echo ip rule add iif ${VTI_IFACE} lookup ${CONNMARK_OUT%/*}
+                ip rule add iif ${VTI_IFACE} lookup ${CONNMARK_OUT%/*}
+                echo ip route add ${PLUTO_MY_CLIENT} via ${GATEWAY} dev ${KNI_NAME} table ${CONNMARK_OUT%/*}
+                ip route add ${PLUTO_MY_CLIENT} via ${GATEWAY} dev ${KNI_NAME} table ${CONNMARK_OUT%/*}
+                echo "done ip route"
+            fi
+        fi
+    fi
+}
+
+delvti() {
+    if [ -n "${VTI_IFACE}" -a -d /proc/sys/net/ipv4/conf/${VTI_IFACE} ]; then
+        if [ "${VTI_ROUTING}" = yes ]; then
+                # We assume the KNI uses a /30 so we'll find the other address for the gateway
+                local last_octet=$(echo $IPADDR | cut -d '.' -f 4)
+                if [ $(($last_octet%2)) -eq 0 ]; then
+                    GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($last_octet - 1)))
+                else
+                    GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($last_octet + 1)))
+                fi
+                ip route delete ${PLUTO_MY_CLIENT} via ${GATEWAY} dev ${KNI_NAME} table ${CONNMARK_OUT%/*}
+                ip rule delete table ${CONNMARK_OUT%/*}
+        fi
+        if [ "${VTI_SHARED}" = no -a "${PLUTO_CONN_KIND}" != CK_INSTANCE ]; then
+                ip tun del ${VTI_IFACE} ||:
+        fi
+   fi
+}
+
+# Client Address Translation CAT
+addcat() {
+    if [ -n "${CAT}" ] && [ "${PLUTO_MY_CLIENT_NET}" != "0.0.0.0" ] ; then
+        iptables -t nat -I POSTROUTING -m policy --dir out --pol ipsec \
+            -d ${PLUTO_PEER_CLIENT} -j SNAT --to-source ${PLUTO_MY_CLIENT_NET}
+        iptables -t nat -I PREROUTING -m policy --dir in --pol ipsec \
+            -d ${PLUTO_MY_CLIENT_NET} -s ${PLUTO_PEER_CLIENT} \
+            -j DNAT --to-destination ${PLUTO_ME}
+    fi
+}
+
+delcat() {
+    if [ -n "${CAT}" ]; then
+        iptables -t nat -D PREROUTING -m policy --dir in --pol ipsec  \
+            -d ${PLUTO_MY_CLIENT_NET} -s ${PLUTO_PEER_CLIENT} \
+            -j DNAT --to-destination ${PLUTO_ME}
+        iptables -t nat -D POSTROUTING -m policy --dir out --pol ipsec \
+            -d ${PLUTO_PEER_CLIENT} -j SNAT --to-source ${PLUTO_MY_CLIENT_NET}
+    fi
+}
+
+echo "$0: called with verb \"${PLUTO_VERB}\" and parameter \"${1}\""
+# the big choice
+case "${PLUTO_VERB}" in
+    prepare-host|prepare-client)
+        addvtiiface
+        ;;
+    route-host|route-client)
+        # connection to me or my client subnet being routed
+        addvti
+        uproute
+        addnflog
+        ;;
+    unroute-host|unroute-client)
+        # connection to me or my client subnet being unrouted
+        downroute
+        delsource
+        ;;
+    up-host)
+        # connection to me coming up
+        # If you are doing a custom version, firewall commands go here.
+        ;;
+    down-host)
+        # connection to me going down
+        downrule
+        delnflog
+        delcat
+        delvti
+        # If you are doing a custom version, firewall commands go here.
+        ;;
+    up-client)
+        # connection to my client subnet coming up
+        # If you are doing a custom version, firewall commands go here.
+        addvtiiface
+        updateresolvconf
+        addcat
+        addsource
+        notifyNM connect
+        ;;
+    down-client)
+        # connection to my client subnet going down
+        downrule
+        delnflog
+        delcat
+        delvti
+        # If you are doing a custom version, firewall commands go here.
+        restoreresolvconf
+        notifyNM disconnect
+        ;;
+    #
+    # IPv6
+    #
+    prepare-host-v6|prepare-client-v6)
+        # prepare client for connection
+        ;;
+    route-host-v6|route-client-v6)
+        # connection to me or my client subnet being routed
+        ;;
+    unroute-host-v6|unroute-client-v6)
+        # connection to me or my client subnet being unrouted
+        ;;
+    up-host-v6)
+        # connection to me coming up
+        # If you are doing a custom version, firewall commands go here.
+        ;;
+    down-host-v6)
+        # connection to me going down
+        # If you are doing a custom version, firewall commands go here.
+        ;;
+    up-client-v6)
+        # connection to my client subnet coming up
+        # If you are doing a custom version, firewall commands go here.
+        ;;
+    down-client-v6)
+        # connection to my client subnet going down
+        # If you are doing a custom version, firewall commands go here.
+        ;;
+    *)  echo "$0: unknown verb \"${PLUTO_VERB}\" or parameter \"${1}\"" >&2
+        exit 1
+        ;;
+esac
