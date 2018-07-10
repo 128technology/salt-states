@@ -24,7 +24,7 @@ LOG_DIRECTORY = '/var/log/128technology'
 if not os.path.exists(LOG_DIRECTORY):
     os.makedirs(LOG_DIRECTORY)
 logger = logging.getLogger(__name__)
-handler = logging.FileHandler('{0}/{1}.log'.format(LOG_DIRECTORY,'t128_sdwan'))
+handler = logging.FileHandler('{0}/{1}.log'.format(LOG_DIRECTORY,'t128_netconf'))
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
