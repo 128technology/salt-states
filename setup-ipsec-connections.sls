@@ -122,4 +122,11 @@ Setup init script for {{ vpn }}:
     - source: salt://files/ipsec-connection-init
     - mode: 744
     - makedirs: True
+
+Setup monitoring file for {{ vpn }}:
+  file.managed:
+    - name: /etc/128technology/plugins/network-scripts/host/{{ vpn }}/monitoring
+    - source: salt://files/ipsec-monitoring-init
+    - mode: 744
+    - makedirs: True
 {%- endfor %}
