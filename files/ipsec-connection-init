@@ -27,3 +27,27 @@ if [ -d "/sys/devices/virtual/net/$KNI_NAME" ]; then
   ip netns exec $IPSEC_NAMESPACE ip a add $IPADDR/$PREFIX dev $KNI_NAME
   ip netns exec $IPSEC_NAMESPACE ip l set $KNI_NAME up
 fi
+
+# If the IPSec tunnel came up before this interface, the Linux routing would fail
+# Therefore, we will attempt to setup the routes again
+export PLUTO_VERB='route-host'
+export VTI_ROUTING='yes'
+MARKS=($(grep mark /etc/ipsec.d/$KNI_NAME.conf | awk -F= '{print $2}' | awk -F/ '{print $1}'))
+LEFT=$(grep left /etc/ipsec.d/$KNI_NAME.conf | awk -F= '{print $2}' | head -1)
+export PLUTO_INTERFACE=$(ip a show | grep -B 2 "inet $LEFT" | head -1 | awk '{print $2}' | cut -d ':' -f 1)
+LEFTSUBNETS=($(grep leftsubnet /etc/ipsec.d/$KNI_NAME.conf | awk -F= '{print $2}'))
+RIGHTSUBNETS=($(grep rightsubnet /etc/ipsec.d/$KNI_NAME.conf | awk -F= '{print $2}'))
+METRICS=($(grep metric /etc/ipsec.d/$KNI_NAME.conf | awk -F= '{print $2}'))
+i=0
+for MARK in "${MARKS[@]}"
+do
+    export CONNMARK_IN=$MARK
+    export CONNMARK_OUT=$MARK
+    export VTI_IFACE=vti$MARK
+    export PLUTO_MY_CLIENT="${LEFTSUBNETS[i]}"
+    export PLUTO_PEER_CLIENT="${RIGHTSUBNETS[i]}"
+    export PLUTO_METRIC="${METRICS[i]}"
+    ip netns exec $IPSEC_NAMESPACE /usr/libexec/updown_128t.sh --route y --kni $KNI_NAME
+    ((i++))
+done
+
