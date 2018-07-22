@@ -69,7 +69,7 @@ Create configuration file for VPN {{ vpn }}:
         {%- endif %}
         conn {{ vpn }}-tunnel{{ loop.index }}
           authby={{ tunnel.authby | default('secret') }}
-          auto=up
+          auto=start
           ike={{ tunnel.ike }}
           ikev2={{ tunnel.ikev2 | default('insist') }}
           phase2={{ tunnel.phase2 | default('esp') }}
@@ -126,7 +126,7 @@ Setup init script for {{ vpn }}:
 Setup monitoring file for {{ vpn }}:
   file.managed:
     - name: /etc/128technology/plugins/network-scripts/host/{{ vpn }}/monitoring
-    - source: salt://files/ipsec-monitoring-init
+    - source: salt://files/ipsec-monitoring
     - mode: 744
     - makedirs: True
 {%- endfor %}
