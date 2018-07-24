@@ -7,7 +7,7 @@
 {%- set leases = data['data']['leases'] %}
 {%- set delete = data['data']['delete'] %}
 add branch router to config:
-  local.t128_sdwan.update_adjacencies:
+  local.t128_netconf.update_adjacencies:
     - tgt: '128t_role:conductor'
     - tgt_type: grain
     - arg:

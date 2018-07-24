@@ -1,0 +1,22 @@
+#!/bin/bash
+KNI_NAME=$1
+source /etc/sysconfig/128T-ipsec
+
+#echo "Running monitor script on $KNI_NAME"
+touch /root/ran-monitor
+
+VTI_INTERFACES=($(grep vti-interface /etc/ipsec.d/$KNI_NAME.conf | awk -F= '{print $2}'))
+UP=0
+for VTI_INTERFACE in "${VTI_INTERFACES[@]}"
+do
+    ip netns exec $IPSEC_NAMESPACE ip tunnel show $VTI_INTERFACE > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        #echo "Tunnel $VTI_INTERFACE is up"
+        ((UP++))
+    fi
+done
+if [ $UP -eq 0 ]; then
+  echo "down"
+else
+  echo "up"
+fi
