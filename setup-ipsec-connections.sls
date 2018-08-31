@@ -25,6 +25,7 @@
 ## dpdaction   | string  | None          | The action to take when a peer is declared dead.  Suggested use when enabling DPD is 'restart'
 ## leftsubnet  | string  | '0.0.0.0/0'   | The local CIDR range to route from the VTI to the KNI
 ## leftid      | string  | None          | Optional value for the local side to use to identify itself for authentication
+## rightid     | string  | None          | Optional value for the remote side to use to identify itself for authentication
 ## right       | string  | None          | The IP address or FQDN of the remote end of the tunnel
 ## rightsubnet | string  | '0.0.0.0/0'   | The remote CIDR range to route from the KNI to the VTI
 ## metric      | integer | None          | Optional value to use as a routing metric when a VPN has multiple tunnels
@@ -95,6 +96,9 @@ Create configuration file for VPN {{ vpn }}:
         {%- endif %}
           right={{ tunnel.right }}
           rightsubnet={{ tunnel.rightsubnet | default('0.0.0.0/0') }}
+        {%- if tunnel.get('rightid') %}
+          rightid={{ tunnel.rightid }}
+        {%- endif %}
           mark={{ mark }}/0xffffffff
           vti-interface=vti{{ mark }}
           vti-shared=no
@@ -113,7 +117,7 @@ Create secrets file for {{ vpn }}:
     - mode: 600
     - contents: |
         {%- for tunnel in tunnels %}
-        {{ tunnel.leftid | default(salt['grains.get']('t128_ipsec_local_address')) }} {{ tunnel.right }} : PSK "{{ tunnel.psk }}"
+        {{ tunnel.leftid | default(salt['grains.get']('t128_ipsec_local_address')) }} {{ tunnel.rightid | default(tunnel.right) }} : PSK "{{ tunnel.psk }}"
         {%- endfor %}
 
 Setup init script for {{ vpn }}:
