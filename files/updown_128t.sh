@@ -660,7 +660,7 @@ addvti() {
 
                 # We'll use iproute2 to create tables that guarantee our traffic goes where we wanted
                 # We will use the mark as a unique table lookup
-                EXISTING_RULES=`ip rule list iif ${VTI_IFACE} | wc -l`
+                EXISTING_RULES=`ip rule list | grep ${VTI_IFACE} | wc -l`
                 if [ $EXISTING_RULES -eq 0 ];then
                     ip rule add iif ${VTI_IFACE} lookup ${CONNMARK_OUT%/*}
                 fi
