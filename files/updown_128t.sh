@@ -554,7 +554,7 @@ doroute() {
 
     KNI_TABLE=$(echo $IPADDR | tr . '\n' | awk '{s = s*256 + $1} END{print s}')
     # Add the table if it doesn't already exist
-    if [ $( ip rule list table ${KNI_TABLE} | wc -l ) -eq 0 ];then
+    if [ $( ip rule list | grep ${KNI_TABLE} | wc -l ) -eq 0 ];then
         ip rule add iif ${KNI_NAME} lookup ${KNI_TABLE}
     fi
     it="ip route $1 ${parms} ${parms2} table ${KNI_TABLE}"
