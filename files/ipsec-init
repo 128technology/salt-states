@@ -9,6 +9,23 @@ else
   GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($LAST_OCTET + 1)))
 fi
 
+function valid_ip()
+{
+    local  ip=$1
+    local  stat=1
+
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        OIFS=$IFS
+        IFS='.'
+        ip=($ip)
+        IFS=$OIFS
+        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
+            && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+        stat=$?
+    fi
+    return $stat
+}
+
 # create namespace if it doesn't exist
 if [ ! -e "/var/run/netns/$IPSEC_NAMESPACE" ]; then
   echo "$IPSEC_NAMESPACE namespace does not exist...creating it."
@@ -33,6 +50,27 @@ if [ -d "/sys/devices/virtual/net/$KNI_NAME" ]; then
   ip netns exec $IPSEC_NAMESPACE ip a add $IPADDR/$PREFIX dev $KNI_NAME
   ip netns exec $IPSEC_NAMESPACE ip l set $KNI_NAME up
   ip netns exec $IPSEC_NAMESPACE ip r add default via $GATEWAY dev $KNI_NAME
+fi
+
+# If we have any FQDNs, we should make sure DNS works first test for non-valid IPs in left or right
+FQDNS_PRESENT=false
+VPN_ENDPOINTS=($(grep -E "left=|right=" /etc/ipsec.d/*.conf | cut -d '=' -f 2))
+for ENDPOINT in "${VPN_ENDPOINTS[@]}"
+do
+  if !(valid_ip $ENDPOINT); then
+    printf "%s" "$ENDPOINT"
+    printf " is NOT a valid IP\n"
+    FQDNS_PRESENT=true
+    break
+  fi
+done
+
+# If we find an FQDN, we wan't to loop until DNS works
+if [ "$FQDNS_PRESENT" = true ]; then
+  until /bin/nslookup 128technology.com
+  do
+    sleep 1
+  done
 fi
 
 # start IKE in the IPSec namespace
