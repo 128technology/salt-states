@@ -23,6 +23,8 @@ ExecStartPre=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/_stackmanag
 ExecStartPre=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/sbin/ipsec --checknss
 # Check for nflog setup
 ExecStartPre=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/sbin/ipsec --checknflog
+# Wait for DNS to respond
+ExecStartPre=/usr/libexec/128t-ipsec-dns-test.sh
 # Start the actual IKE daemon
 ExecStart=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/pluto --leak-detective --config /etc/ipsec.conf --nofork
 ExecStop=/sbin/ip netns exec $IPSEC_NAMESPACE /usr/libexec/ipsec/whack --shutdown

@@ -34,6 +34,12 @@ Setup 128t-ipsec service:
     - name: /etc/systemd/system/128t-ipsec.service
     - source: salt://files/128t-ipsec.service
 
+Setup 128t-ipsec DNS test script:
+  file.managed:
+    - name: /usr/libexec/128t-ipsec-dns-test.sh
+    - source: salt://files/128t-ipsec-dns-test.sh
+    - mode: 755
+
 Setup 128t updown script:
   file.managed:
     - name: /usr/libexec/updown_128t.sh
