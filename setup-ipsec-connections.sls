@@ -54,6 +54,16 @@
 ##
 {%- set ipsec_vpns = pillar.get('ipsec_vpns') %}
 {%- for vpn, tunnels in ipsec_vpns.iteritems() %}
+  {%- set dns_fail = [] %}
+  {%- for tunnel in tunnels %}
+    {%- if not tunnel.right | is_ip %}
+      {%- set resolved_addresses=salt['dnsutil.A'](tunnel.right) %}
+      {%- if resolved_addresses|length == 0 %}
+        {%- do dns_fail.append(tunnel.right) %}
+      {%- endif %}
+    {%- endif %}
+  {%- endfor %}
+  {%- if not dns_fail %}
 Create configuration file for VPN {{ vpn }}:
   file.managed:
     - name: /etc/ipsec.d/{{ vpn }}.conf
@@ -133,4 +143,7 @@ Setup monitoring file for {{ vpn }}:
     - source: salt://files/ipsec-monitoring
     - mode: 744
     - makedirs: True
+  {%- else %}
+    {%- do salt.log.error('setup-ipsec-connections had DNS failure for ' + dns_fail|join(' ')) %}
+  {%- endif %}
 {%- endfor %}
