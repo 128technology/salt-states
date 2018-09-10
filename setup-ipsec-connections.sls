@@ -91,7 +91,7 @@ Create configuration file for VPN {{ vpn }}:
           compress={{ tunnel.compress | default('no') }}
           pfs={{ tunnel.pfs | default('no') }}
         {%- if tunnel.get('dpddelay') %}
-          dpddelay={{ tunnel1.dpddelay }}
+          dpddelay={{ tunnel.dpddelay }}
         {%- endif %}
         {%- if tunnel.get('dpdtimeout') %}
           dpdtimeout={{ tunnel.dpdtimeout }}
