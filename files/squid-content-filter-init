@@ -1,0 +1,32 @@
+#!/bin/bash
+KNI_NAME=$1
+source /etc/sysconfig/128T-squid-content-filter
+source /etc/sysconfig/network-scripts/ifcfg-$1
+LAST_OCTET=$(echo $IPADDR | cut -d '.' -f 4)
+if [ $(($LAST_OCTET%2)) -eq 0 ]; then
+  GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($LAST_OCTET - 1)))
+else
+  GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($LAST_OCTET + 1)))
+fi
+
+# create namespace if it doesn't exist
+if [ ! -e "/var/run/netns/$SQUID_NAMESPACE" ]; then
+  echo "$SQUID_NAMESPACE namespace does not exist...creating it."
+  ip netns add $SQUID_NAMESPACE
+  ip netns exec $SQUID_NAMESPACE ip link set lo up
+  echo "$SQUID_NAMESPACE created."
+fi
+
+# set up KNI if it exists in the default namespace
+if [ -d "/sys/devices/virtual/net/$KNI_NAME" ]; then
+  echo "$KNI_NAME found in default namespace."
+  echo "Moving $KNI_NAME to $SQUID_NAMESPACE namespace."
+  ip link set $KNI_NAME netns $SQUID_NAMESPACE
+  ip netns exec $SQUID_NAMESPACE ip a add $IPADDR/$PREFIX dev $KNI_NAME
+  ip netns exec $SQUID_NAMESPACE ip l set $KNI_NAME up
+  ip netns exec $SQUID_NAMESPACE ip r add default via $GATEWAY dev $KNI_NAME
+fi
+
+# start squid in the namespace
+systemctl start 128t-squid
+systemctl start 128t-lighttpd
