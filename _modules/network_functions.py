@@ -8,6 +8,7 @@ import logging
 import os
 import jinja2
 import jinja2.exceptions
+from random import randint
 
 # Import salt libs
 import salt.utils
@@ -58,3 +59,12 @@ def get_address_as_decimal(addr):
     for a particular IPSec tunnel using the remote address.
     '''
     return int(ipaddress.ip_address(addr))
+
+def get_random_link_local():
+    '''
+    Return a random link local address
+
+    This function returns a random address between 169.254.1.1 and 169.254.255.255
+    '''
+    prefix = long('10101001111111100000000000000000',2)
+    return str(ipaddress.IPv4Address(prefix + randint(257,65278)))

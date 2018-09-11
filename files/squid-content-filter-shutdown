@@ -1,0 +1,4 @@
+source /etc/sysconfig/128T-squid-content-filter
+systemctl stop 128t-lighttpd
+systemctl stop 128t-squid
+ip netns del $SQUID_NAMESPACE
