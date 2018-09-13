@@ -1,7 +1,10 @@
 #!/bin/bash
 KNI_NAME=$1
-source /etc/sysconfig/128T-squid-content-filter
+NS=$2
+# Import common functions related to namespace operations
+source /etc/128technology/plugins/network-scripts/common/namespace_helpers
 source /etc/sysconfig/network-scripts/ifcfg-$1
+source /etc/sysconfig/128T-squid-content-filter
 LAST_OCTET=$(echo $IPADDR | cut -d '.' -f 4)
 if [ $(($LAST_OCTET%2)) -eq 0 ]; then
   GATEWAY=$(echo $IPADDR | cut -d '.' -f 1-3).$(echo $(($LAST_OCTET - 1)))
@@ -12,7 +15,7 @@ fi
 # create namespace if it doesn't exist
 if [ ! -e "/var/run/netns/$SQUID_NAMESPACE" ]; then
   echo "$SQUID_NAMESPACE namespace does not exist...creating it."
-  ip netns add $SQUID_NAMESPACE
+  create_namespace $NS
   ip netns exec $SQUID_NAMESPACE ip link set lo up
   echo "$SQUID_NAMESPACE created."
 fi
@@ -28,5 +31,5 @@ if [ -d "/sys/devices/virtual/net/$KNI_NAME" ]; then
 fi
 
 # start squid in the namespace
-systemctl start 128t-squid
-systemctl start 128t-lighttpd
+systemctl start 128t-squid-content-filter
+systemctl start 128t-lighttpd-content-filter
