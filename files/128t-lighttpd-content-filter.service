@@ -5,7 +5,6 @@ After=syslog.target network-online.target
 [Service]
 PIDFile=/var/run/lighttpd.pid
 EnvironmentFile=/etc/sysconfig/128T-squid-content-filter
-ExecStartPre=/usr/libexec/kni-setup.sh
 ExecStart=/usr/sbin/ip netns exec $SQUID_NAMESPACE /usr/sbin/lighttpd -D -f /etc/lighttpd/lighttpd.conf
 
 [Install]
