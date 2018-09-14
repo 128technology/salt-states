@@ -1,5 +1,8 @@
 #!/bin/bash
 KNI_NAME=$1
+NS=$2
+# Import common functions related to namespace operations
+source /etc/128technology/plugins/network-scripts/common/namespace_helpers
 source /etc/sysconfig/128T-ipsec
 source /etc/sysconfig/network-scripts/ifcfg-$1
 LAST_OCTET=$(echo $IPADDR | cut -d '.' -f 4)
@@ -12,7 +15,7 @@ fi
 # create namespace if it doesn't exist
 if [ ! -e "/var/run/netns/$IPSEC_NAMESPACE" ]; then
   echo "$IPSEC_NAMESPACE namespace does not exist...creating it."
-  ip netns add $IPSEC_NAMESPACE
+  create_namespace $NS
   ip netns exec $IPSEC_NAMESPACE ip link set lo up
   echo "IPSEC_$NAMESPACE created."
   echo "Setting ip_forwarding in namespace $IPSEC_NAMESPACE."

@@ -10,13 +10,13 @@
 ##
 ## Name            | Type   | Default Value  | Description
 ## ----------------------------------------------------------------------------------------------------
-## ipsec_namespace | string | '128t-ipsec'   | The name of the namespace for IPSec SFC
+## ipsec_namespace | string | 't128-ipsec'   | The name of the namespace for IPSec SFC
 ## kni_interface   | string | 'sfc-ipsec'    | The name of the KNI interface used for IPSec traffic
 ## kni_address     | string | '169.254.31.2' | The IP address of the Linux side of the KNI interface
 ##
 {%- set kni_interface_default = 'sfc-ipsec' %}
 {%- set kni_address_default = '169.254.31.2' %}
-{%- set ipsec_namespace_default = '128t-ipsec' %}
+{%- set ipsec_namespace_default = 't128-ipsec' %}
 {%- set ipsec_settings = pillar.get('ipsec_settings') %}
 Setup ipsec variables:
   file.managed:
