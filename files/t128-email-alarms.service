@@ -1,0 +1,11 @@
+[Unit]
+Description=Service to monitor for 128T alarms and send them via e-mail
+After=128T.service
+
+[Service]
+ExecStart=/usr/bin/node /root/t128-email-alarms/t128-email-alarms.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
