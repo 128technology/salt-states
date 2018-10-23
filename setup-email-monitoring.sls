@@ -30,6 +30,7 @@ Setup configuration options for email alerting:
 
 Install npm packages required for email alerting:
   npm.installed:
+    - dir: /root/t128-email-alarms
     - pkgs:
       - eventsource
       - nodemailer
