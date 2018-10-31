@@ -14,10 +14,15 @@ Setup configuration options for email alerting:
         exports.t128Address = '{{ pillar['t128EmailAlertT128Address'] | default('localhost') }}'
         exports.authToken   = '{{ pillar['t128EmailAlertT128Token'] }}'
         
-        exports.mailHost    = '{{ pillar['t128EmailAlertMailHost'] }}'
-        exports.mailPort    = {{ pillar['t128EmailAlertMailPort'] }}
+        exports.mailHost    = '{{ pillar['t128EmailAlertMailHost'] | default('localhost') }}'
+        exports.mailPort    = {{ pillar['t128EmailAlertMailPort'] | default(25) }}
+        exports.mailSecure  = {{ pillar['t128EmailAlertMailSecure'] | default('false') }}
+        {%- if pillar.t128EmailAlertMailUser is defined %}
         exports.mailUser    = '{{ pillar['t128EmailAlertMailUser'] }}'
+        {%- endif %}
+        {%- if pillar.t128EmailAlertMailPass is defined %}
         exports.mailPass    = '{{ pillar['t128EmailAlertMailPass'] }}'
+        {%- endif %}
         exports.mailFrom    = '{{ pillar['t128EmailAlertMailFrom'] }}'
         exports.mailTo      = '{{ pillar['t128EmailAlertMailTo'] }}'
         exports.mailSubject = '{{ pillar['t128EmailAlertMailSubject'] | default('128T Alarms') }}'

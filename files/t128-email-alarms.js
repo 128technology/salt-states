@@ -34,14 +34,18 @@ let poolConfig = {
   pool: true,
   host: config.mailHost,
   port: config.mailPort,
-  secure: true,
-  auth: {
-    user: config.mailUser,
-    pass: config.mailPass
-  },
+  secure: config.mailSecure,
   tls: {
     rejectUnauthorized: false
   }
+}
+
+if ( typeof config.mailUser !== 'undefined' && typeof config.mailPass !== 'undefined') {
+  let auth = {
+    user: config.mailUser,
+    pass: config.mailPass
+  };
+  poolConfig['auth'] = auth
 }
 
 let transporter = NodeMailer.createTransport(poolConfig)
