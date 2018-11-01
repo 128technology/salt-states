@@ -33,9 +33,9 @@ Setup configuration options for email alerting:
         // even if they were cleared before the interval ended
         // If this is set to SEND_CLEAR_INTERVAL we will only send an e-mail when there was an alarm
         // which did not clear during the interval, but we will include all alarms and clears
-        // If this is set to NO_SEND_CLEAR_INTERVAL we will never send alarms which cleared during the
+        // If this is set to NO_CLEAR_INTERVAL we will never send alarms which cleared during the
         // active interval
-        exports.sendBehaviorEnum = '{{ pillar['t128EmailAlertSendBehavior'] | default('NO_SEND_CLEAR_INTERVAL') }}'
+        exports.sendBehaviorEnum = '{{ pillar['t128EmailAlertSendBehavior'] | default('NO_CLEAR_INTERVAL') }}'
 
 Install npm packages required for email alerting:
   npm.installed:
