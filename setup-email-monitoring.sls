@@ -36,6 +36,13 @@ Setup configuration options for email alerting:
         // If this is set to NO_CLEAR_INTERVAL we will never send alarms which cleared during the
         // active interval
         exports.sendBehaviorEnum = '{{ pillar['t128EmailAlertSendBehavior'] | default('NO_CLEAR_INTERVAL') }}'
+        // Filter alarms to only include routers in this array (empty means don't filter
+        {%- if pillar.t128EmailAlertRouterFilter is defined %}
+        exports.routerFilter = [{% for router in pillar.t128EmailAlertRouterFilter %}'{{ router }}'{% if not loop.last%},{% endif %}{% endfor %}]
+        {%- else %}
+        exports.routerFilter = []
+        {%- endif %}
+
 
 Install npm packages required for email alerting:
   npm.installed:
