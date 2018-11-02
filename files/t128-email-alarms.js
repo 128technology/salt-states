@@ -87,7 +87,7 @@ function emailAlarms() {
     // ALWAYS_SEND_ALL - we want to always send all alarms/clears
     // SEND_CLEAR_INTERVAL - only send an email if all alarms did not clear, but send all alarms/clears during
     //                       the interval when this happens
-    // NO_SEND_CLEAR_INTERVAL - only send an email if all alarms did not clear, only send the alarms that
+    // NO_CLEAR_INTERVAL - only send an email if all alarms did not clear, only send the alarms that
     //                          did not clear
     switch(config.sendBehaviorEnum) {
       case 'ALWAYS_SEND_ALL':
