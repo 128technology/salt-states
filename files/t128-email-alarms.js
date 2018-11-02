@@ -23,6 +23,7 @@ class T128Alarm {
 }
 
 var alarmArray = new Array();
+var routerFilter = config.routerFilter;
 
 // set up event channel
 var eventUrl = `https://${config.t128Address}/api/v1/events?token=${config.authToken}`
@@ -71,15 +72,17 @@ function emailAlarms() {
                 "</style>";
     var intervalAlarms = {};
     alarmArray.forEach(function(value){
-      if (value.subType === "ADD") {
-        intervalAlarms[value.id] = value;
-      } else if (value.subType === "CLEAR") {
-        if (Object.keys(intervalAlarms).includes(value.id)) {
-          // This alarm is already in the current interval Array, so let's pop it
-          delete intervalAlarms[value.id];
-        } else {
-          // This is a clear from a previous interval, we should add it so a notification of the clear is sent
+      if (routerFilter.length > 0 && routerFilter.indexOf(value.router) > -1) {
+        if (value.subType === "ADD") {
           intervalAlarms[value.id] = value;
+        } else if (value.subType === "CLEAR") {
+          if (Object.keys(intervalAlarms).includes(value.id) && intervalAlarms[value.id].subType === "ADD") {
+            //console.log('popping alarm because clear came within interval');
+            delete intervalAlarms[value.id];
+          } else {
+            //console.log('we got a clear that doesn\'t match an existing alarm, add it to the queue');
+            intervalAlarms[value.id] = value;
+          }
         }
       }
     });
@@ -93,23 +96,25 @@ function emailAlarms() {
       case 'ALWAYS_SEND_ALL':
       case 'SEND_CLEAR_INTERVAL':
         alarmArray.forEach(function(value){
-          //emailText += "Alarm ID: " + value.id + "\n" +
-          emailText +=  "Type: " + value.subType + "\n" +
-                        "Severity: " + value.severity + "\n" +
-                        "Router: " + value.router + "\n" +
-                        "Node: " + value.node + "\n" +
-                        "Category: " + value.category + "\n" +
-                        "Message: " + value.message + "\n" +
-                        "Source: " + value.source + "\n\n";
+          if (routerFilter.length > 0 && routerFilter.indexOf(value.router) > -1) {
+            //emailText += "Alarm ID: " + value.id + "\n" +
+            emailText +=  "Type: " + value.subType + "\n" +
+                          "Severity: " + value.severity + "\n" +
+                          "Router: " + value.router + "\n" +
+                          "Node: " + value.node + "\n" +
+                          "Category: " + value.category + "\n" +
+                          "Message: " + value.message + "\n" +
+                          "Source: " + value.source + "\n\n";
 
-          emailHTML += "<table>\n" +
-                       "<tr class=" + value.subType + "><td>Type:</td><td>" + value.subType + "</td></tr>\n" +
-                       "<tr class=" + value.severity + "><td>Severity:</td><td>" + value.severity + "</td></tr>\n" +
-                       "<tr><td>Router:</td><td>" + value.router + "</td></tr>\n" +
-                       "<tr><td>Node:</td><td>" + value.node + "</td></tr>\n" +
-                       "<tr><td>Category:</td><td>" + value.category + "</td></tr>\n" +
-                       "<tr><td>Message:</td><td>" + value.message + "</td></tr>\n" +
-                       "<tr><td>Source:</td><td>" + value.source + "</td></tr>\n<br>\n";
+            emailHTML += "<table>\n" +
+                         "<tr class=" + value.subType + "><td>Type:</td><td>" + value.subType + "</td></tr>\n" +
+                         "<tr class=" + value.severity + "><td>Severity:</td><td>" + value.severity + "</td></tr>\n" +
+                         "<tr><td>Router:</td><td>" + value.router + "</td></tr>\n" +
+                         "<tr><td>Node:</td><td>" + value.node + "</td></tr>\n" +
+                         "<tr><td>Category:</td><td>" + value.category + "</td></tr>\n" +
+                         "<tr><td>Message:</td><td>" + value.message + "</td></tr>\n" +
+                         "<tr><td>Source:</td><td>" + value.source + "</td></tr>\n<br>\n";
+          }
         });
         break;
       case 'NO_CLEAR_INTERVAL':
@@ -150,7 +155,7 @@ function emailAlarms() {
         console.log("Message sent: " + info.messageId);
       });
     } else {
-      console.log("there were alarms this interval, but they all cleared");
+      console.log("there were alarms this interval, but they all cleared or were filtered");
     }
     // clear alarm array
     alarmArray.length = 0;
