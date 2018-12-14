@@ -72,7 +72,7 @@ function emailAlarms() {
                 "</style>";
     var intervalAlarms = {};
     alarmArray.forEach(function(value){
-      if (routerFilter.length > 0 && routerFilter.indexOf(value.router) > -1) {
+      if (routerFilter.length == 0 || routerFilter.indexOf(value.router) > -1) {
         if (value.subType === "ADD") {
           intervalAlarms[value.id] = value;
         } else if (value.subType === "CLEAR") {
