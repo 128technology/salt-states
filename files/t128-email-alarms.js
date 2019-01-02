@@ -58,9 +58,42 @@ transporter.verify(function(error, success) {
    }
 });
 
-// function to email any pending alarms every interval
-function emailAlarms() {
-  if (alarmArray.length > 0) {
+function filterClearedAlarms(alarms) {
+  var intervalAlarms = {};
+  var unclearedAlarms = [];
+  alarms.forEach(function(value){
+    if (value.subType === "ADD") {
+      // We got an add alarm so push it
+      intervalAlarms[value.id] = value;
+    } else if (value.subType === "CLEAR") {
+      if (Object.keys(intervalAlarms).includes(value.id) && intervalAlarms[value.id].subType === "ADD") {
+        //console.log('popping alarm because clear came within interval');
+        delete intervalAlarms[value.id];
+      } else {
+        //console.log('we got a clear that doesn\'t match an existing alarm, add it to the queue');
+        intervalAlarms[value.id] = value;
+      }
+    }
+  });
+  for (var alarm in intervalAlarms) {
+    unclearedAlarms.push(intervalAlarms[alarm])
+  }
+  return unclearedAlarms;
+}
+
+function filterAlarmsByRouter(alarms) {
+  filteredAlarms = [];
+  alarms.forEach(function(value) {
+    if (routerFilter.indexOf(value.router) > -1) {
+      filteredAlarms.push(value);
+    }
+  });
+  return filteredAlarms;
+}
+
+// function to email any pending alarms
+function emailAlarms(alarms) {
+  if (alarms.length > 0) {
     emailText = "";
     emailHTML = "<style>\n" +
                 "table, th, td { border: 1px solid black; }\n" +
@@ -69,103 +102,79 @@ function emailAlarms() {
                 ".MINOR { background-color: yellow; }\n" +
                 ".ADD { background-color: Crimson; }\n" +
                 ".CLEAR { background-color: CornflowerBlue; }\n" +
-                "</style>";
-    var intervalAlarms = {};
-    alarmArray.forEach(function(value){
-      if (routerFilter.length == 0 || routerFilter.indexOf(value.router) > -1) {
-        if (value.subType === "ADD") {
-          intervalAlarms[value.id] = value;
-        } else if (value.subType === "CLEAR") {
-          if (Object.keys(intervalAlarms).includes(value.id) && intervalAlarms[value.id].subType === "ADD") {
-            //console.log('popping alarm because clear came within interval');
-            delete intervalAlarms[value.id];
-          } else {
-            //console.log('we got a clear that doesn\'t match an existing alarm, add it to the queue');
-            intervalAlarms[value.id] = value;
-          }
-        }
-      }
+                "</style>" +
+                "<table>\n";
+    alarms.forEach(function(value){
+      //emailText += "Alarm ID: " + value.id + "\n" +
+      emailText +=  "Type: " + value.subType + "\n" +
+                    "Severity: " + value.severity + "\n" +
+                    "Router: " + value.router + "\n" +
+                    "Node: " + value.node + "\n" +
+                    "Category: " + value.category + "\n" +
+                    "Message: " + value.message + "\n" +
+                    "Source: " + value.source + "\n\n";
+
+      emailHTML += "<tr class=" + value.subType + "><td>Type:</td><td>" + value.subType + "</td></tr>\n" +
+                   "<tr class=" + value.severity + "><td>Severity:</td><td>" + value.severity + "</td></tr>\n" +
+                   "<tr><td>Router:</td><td>" + value.router + "</td></tr>\n" +
+                   "<tr><td>Node:</td><td>" + value.node + "</td></tr>\n" +
+                   "<tr><td>Category:</td><td>" + value.category + "</td></tr>\n" +
+                   "<tr><td>Message:</td><td>" + value.message + "</td></tr>\n" +
+                   "<tr><td>Source:</td><td>" + value.source + "</td></tr>\n<br>\n";
     });
-    //This switch supports three options:
-    // ALWAYS_SEND_ALL - we want to always send all alarms/clears
-    // SEND_CLEAR_INTERVAL - only send an email if all alarms did not clear, but send all alarms/clears during
-    //                       the interval when this happens
-    // NO_CLEAR_INTERVAL - only send an email if all alarms did not clear, only send the alarms that
-    //                          did not clear
-    switch(config.sendBehaviorEnum) {
-      case 'ALWAYS_SEND_ALL':
-      case 'SEND_CLEAR_INTERVAL':
-        alarmArray.forEach(function(value){
-          if (routerFilter.length > 0 && routerFilter.indexOf(value.router) > -1) {
-            //emailText += "Alarm ID: " + value.id + "\n" +
-            emailText +=  "Type: " + value.subType + "\n" +
-                          "Severity: " + value.severity + "\n" +
-                          "Router: " + value.router + "\n" +
-                          "Node: " + value.node + "\n" +
-                          "Category: " + value.category + "\n" +
-                          "Message: " + value.message + "\n" +
-                          "Source: " + value.source + "\n\n";
 
-            emailHTML += "<table>\n" +
-                         "<tr class=" + value.subType + "><td>Type:</td><td>" + value.subType + "</td></tr>\n" +
-                         "<tr class=" + value.severity + "><td>Severity:</td><td>" + value.severity + "</td></tr>\n" +
-                         "<tr><td>Router:</td><td>" + value.router + "</td></tr>\n" +
-                         "<tr><td>Node:</td><td>" + value.node + "</td></tr>\n" +
-                         "<tr><td>Category:</td><td>" + value.category + "</td></tr>\n" +
-                         "<tr><td>Message:</td><td>" + value.message + "</td></tr>\n" +
-                         "<tr><td>Source:</td><td>" + value.source + "</td></tr>\n<br>\n";
-          }
-        });
-        break;
-      case 'NO_CLEAR_INTERVAL':
-        for (var alarm in intervalAlarms){
-          //emailText += "Alarm ID: " + value.id + "\n" +
-          emailText +=  "Type: " + intervalAlarms[alarm].subType + "\n" +
-                        "Severity: " + intervalAlarms[alarm].severity + "\n" +
-                        "Router: " + intervalAlarms[alarm].router + "\n" +
-                        "Node: " + intervalAlarms[alarm].node + "\n" +
-                        "Category: " + intervalAlarms[alarm].category + "\n" +
-                        "Message: " + intervalAlarms[alarm].message + "\n" +
-                        "Source: " + intervalAlarms[alarm].source + "\n\n";
+    emailHTML += "</table>";
 
-          emailHTML += "<table>\n" +
-                       "<tr class=" + intervalAlarms[alarm].subType + "><td>Type:</td><td>" + intervalAlarms[alarm].subType + "</td></tr>\n" +
-                       "<tr class=" + intervalAlarms[alarm].severity + "><td>Severity:</td><td>" + intervalAlarms[alarm].severity + "</td></tr>\n" +
-                       "<tr><td>Router:</td><td>" + intervalAlarms[alarm].router + "</td></tr>\n" +
-                       "<tr><td>Node:</td><td>" + intervalAlarms[alarm].node + "</td></tr>\n" +
-                       "<tr><td>Category:</td><td>" + intervalAlarms[alarm].category + "</td></tr>\n" +
-                       "<tr><td>Message:</td><td>" + intervalAlarms[alarm].message + "</td></tr>\n" +
-                       "<tr><td>Source:</td><td>" + intervalAlarms[alarm].source + "</td></tr>\n<br>\n";
-        };
-        break;
-    }
-
-    if (Object.keys(intervalAlarms).length > 0 || config.sendBehaviorEnum === 'ALWAYS_SEND_ALL') {
-      let mailOptions = {
-        from: config.mailFrom,
-        to: config.mailTo,
-        subject: config.mailSubject,
-        text: emailText,
-        html: emailHTML
-      };
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          return console.log(error);
-        }
-        console.log("Message sent: " + info.messageId);
-      });
+    //if we only have one alarm, send some info in the subject header (most likely interval is zero)
+    if (alarms.length === 1) {
+      emailSubject = "[" + alarms[0].router + "] " + alarms[0].subType + ": " + alarms[0].message;
     } else {
-      console.log("there were alarms this interval, but they all cleared or were filtered");
+      emailSubject = config.mailSubject;
     }
-    // clear alarm array
-    alarmArray.length = 0;
+
+    let mailOptions = {
+      from: config.mailFrom,
+      to: config.mailTo,
+      subject: emailSubject,
+      text: emailText,
+      html: emailHTML
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        return console.log(error);
+      }
+      console.log("Message sent: " + info.messageId);
+    });
+
   } else {
     console.log("no alarms this interval");
   }
 }
 
-// check alarms every minute
-setInterval(emailAlarms, config.mailInterval);
+function handleInterval() {
+  if (routerFilter.length > 0) {
+    alarmArray = filterAlarmsByRouter(alarmArray);
+  }
+  if (config.sendBehaviorEnum === 'ALWAYS_SEND_ALL') {
+    emailAlarms(alarmArray);
+  } else {
+    unclearedAlarms = filterClearedAlarms(alarmArray);
+    if (unclearedAlarms.length > 0) {
+      if (config.sendBehaviorEnum === 'NO_CLEAR_INTERVAL') {
+        emailAlarms(unclearedAlarms);
+      } else if (config.sendBehaviorEnum === 'SEND_CLEAR_INTERVAL') {
+        emailAlarms(alarmArray);
+      }
+    }
+  }
+  alarmArray.length = 0;
+}
+        
+// check alarms every interval, if more than zero
+if (config.mailInterval > 0) {
+  setInterval(handleInterval, config.mailInterval);
+}
 
 // handler for incoming messages from the event stream
 es.onmessage = (event)=>{
@@ -173,7 +182,12 @@ es.onmessage = (event)=>{
   //console.log('event received:\n' + event.data)
   if (eventObj.alarm) {
     //console.log('alarm: ' + eventObj.alarm.id + ', subtype: ' + eventObj.subtype);
-    alarmArray.push(new T128Alarm(eventObj.alarm, eventObj.subtype));
+    if (config.mailInterval > 0) {
+      alarmArray.push(new T128Alarm(eventObj.alarm, eventObj.subtype));
+    } else {
+      //if we're not using intervals send all alarms immediately
+      emailAlarms([new T128Alarm(eventObj.alarm, eventObj.subtype)]);
+    } 
   }
 };
 
