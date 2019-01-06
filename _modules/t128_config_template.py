@@ -63,7 +63,7 @@ def _create_add_config(template, name):
     JINJA = jinja2.Environment(
       loader=jinja2.FileSystemLoader('/')
     )
-    template_location = __salt__['cp.cache_file']('salt://templates/{0}.jinja'.format(template))
+    template_location = __salt__['cp.cache_file']('salt://config_templates/{0}.jinja'.format(template))
     if template_location:
       template = JINJA.get_template(template_location)
     else:
