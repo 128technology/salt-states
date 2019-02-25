@@ -91,9 +91,9 @@ class t128ConfigHelper(object):
       c = m.get_config(source='running').data
     return c.find('t128:config', namespaces=T128_NS)
 
-  def commit_config_xml(self, config_xml, t128_host='127.0.0.1', t128_port='830', t128_user='admin', t128_publickey='/home/admin/.ssh/pdc_ssh_key', validationType='distributed'):
+  def commit_config_xml(self, config_xml, t128_host='127.0.0.1', t128_port='830', t128_user='admin', t128_publickey='/home/admin/.ssh/pdc_ssh_key', validationType='distributed', commit_timeout=90):
       netconf_session = manager.connect(host=t128_host, port=t128_port, username=t128_user, 
-          key_filename=t128_publickey, allow_agent=True, look_for_keys=False, hostkey_verify=False)
+          key_filename=t128_publickey, allow_agent=True, look_for_keys=False, hostkey_verify=False, timeout=commit_timeout)
 
       ncclient_agent = ncclientAgent(netconf_session)
       t128_configurator = t128Configurator(ncclient_agent)
