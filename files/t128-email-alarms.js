@@ -180,7 +180,7 @@ if (config.mailInterval > 0) {
 es.onmessage = (event)=>{
   eventObj = JSON.parse(event.data)
   //console.log('event received:\n' + event.data)
-  if (eventObj.alarm) {
+  if (eventObj.alarm && eventObj.alarm.shelvedStatus === 'NOTSHELVED') {
     //console.log('alarm: ' + eventObj.alarm.id + ', subtype: ' + eventObj.subtype);
     if (config.mailInterval > 0) {
       alarmArray.push(new T128Alarm(eventObj.alarm, eventObj.subtype));
