@@ -1,11 +1,11 @@
 # Install a modem lock service
 
-{% set t128-icmp-healthcheck-path = '/usr/sbin/t128-lock-modem.py' %}
+{% set t128_lock_modem_path = '/usr/sbin/t128-lock-modem.py' %}
 
 
 t128-lock-modem-script:
   file.managed:
-    - name: {{ t128-lock-modem-path }}
+    - name: {{ t128_lock_modem_path }}
     - user: root
     - group: root
     - mode: 755
@@ -27,4 +27,4 @@ lock-modem-service:
        Description=A service to lock an UMTS/LTE modem for one hour
 
        [Service]
-       ExecStart={{ t128-lock-modem-path }} 3600
+       ExecStart={{ t128_lock_modem_path }} 3600
