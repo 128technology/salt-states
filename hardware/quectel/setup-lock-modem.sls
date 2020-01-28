@@ -1,6 +1,6 @@
 # Install a modem lock service
 
-{%- set t128-icmp-healthcheck-path = '/usr/sbin/t128-lock-modem.py' %}
+{% set t128-icmp-healthcheck-path = '/usr/sbin/t128-lock-modem.py' %}
 
 
 t128-lock-modem-script:

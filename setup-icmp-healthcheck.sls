@@ -1,7 +1,7 @@
 # Sets up script and cronjob to periodically check for available
 # conductor/internet connection and restart 128T/reboot in case of issues
 
-{%- set t128-icmp-healthcheck-path = '/usr/sbin/t128-icmp-healthcheck.py' %}
+{% set t128-icmp-healthcheck-path = '/usr/sbin/t128-icmp-healthcheck.py' %}
 
 t128-icmp-healthcheck-crontab:
   file.managed:
