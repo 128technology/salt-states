@@ -1,0 +1,12 @@
+From: {{ mail_from }}
+To: {{ mail_recipients }}
+Subject: t128-email-alarms-ha [{{ alarm.router }}] {{ alarm.subtype }}: {{ alarm.message }}
+
+Alarm ID: {{ alarm.id }}
+Type:     {{ alarm.subtype }}
+Severity: {{ alarm.severity }}
+Router:   {{ alarm.router }}
+Node:     {{ alarm.node }}
+Category: {{ alarm.category }}
+Message:  {{ alarm.message }}
+Source:   {{ alarm.source }}
