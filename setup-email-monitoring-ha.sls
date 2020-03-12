@@ -43,7 +43,7 @@ Setup configuration options for email alerting (HA):
             "api_host": "{{ pillar['t128EmailAlertT128Address'] | default('localhost') }}",
             "api_key": "{{ pillar['t128EmailAlertT128Token'] }}",
             "mail_interval": {{ pillar['t128EmailAlertMailInterval'] | default(60) }},
-            "mail_from": "{{ pillar['t128EmailAlertMailInterval'] | default('t128-email-alarms') }}",
+            "mail_from": "{{ pillar['t128EmailAlertMailFrom'] | default('t128-email-alarms') }}",
             "mail_recipients":
         {%- if pillar['t128EmailAlertMailRecipients'] %}
             {{ pillar['t128EmailAlertMailRecipients']|json }}
@@ -65,7 +65,7 @@ Setup systemd service for email alerting (HA):
         After=128T.service
 
         [Service]
-        ExecStart={{ t128_email_alarms_script_path }} -c {{ t128_email_alarms_config_path }}
+        ExecStart=/usr/bin/python -u {{ t128_email_alarms_script_path }} -c {{ t128_email_alarms_config_path }}
         Restart=on-failure
         RestartSec=5
 
