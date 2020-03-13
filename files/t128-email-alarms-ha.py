@@ -218,13 +218,17 @@ def handle_alarms(queue_lock):
             router = alarm['router']
             if router in all_recipients:
                 mail_recipients = all_recipients[router]
-            email_body = create_email_body(mail_from, mail_recipients, alarm)
-            debug('alarm:', email_body, '\nrecipients:', mail_recipients)
+            if type(mail_recipients) in (str, unicode):
+                mail_recipients = [mail_recipients]
+            mail_recipients_str = ', '.join(mail_recipients)
+            email_body = create_email_body(
+                mail_from, mail_recipients_str, alarm)
+            debug('alarm:', email_body, '\nrecipients:', mail_recipients_str)
             if DRY_RUN:
                 # do not send mails
                 continue
             info('Sending mail to {} for alarm id {}'.format(
-                mail_recipients, alarm['id']))
+                mail_recipients_str, alarm['id']))
             send_mail(mail_from, mail_recipients, email_body)
         alarms = []
 
