@@ -260,6 +260,15 @@ def receive_alarms(queue_lock):
 
                 alarm = event['alarm']
                 alarm['subtype'] = event['subtype']
+
+                subject_match = False
+                for subject in config['ignore_subjects']:
+                    if subject in alarm['message']:
+                        subject_match = True
+                if subject_match:
+                    debug('ignore alarm:', alarm['message'])
+                    continue
+
                 if alarm['shelvedStatus'] == 'NOTSHELVED':
                     with queue_lock:
                         # queue an alarm
@@ -285,6 +294,8 @@ def main():
     DEBUG = args.debug
     DRY_RUN = args.dry_run
     config = read_json(args.config_file)
+    if not config.get('ignore_subjects'):
+        config['ignore_subjects'] = []
     mail_interval = config.get('mail_interval', 60)
     template = get_template()
 
