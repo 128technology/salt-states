@@ -16,6 +16,7 @@
 ## t128EmailAlertMailRecipients   | dict    | None                                 | A dictonary with mapping of router names and recipients. 'default' is used for routers which are mentioned.
 ## t128EmailAlertFilterDuplicates | bool    | False                                | Duplicates should be removed.
 ## t128EmailAlertIgnoreSubjects   | list    | None                                 | Alarm subjects that should be ignored.
+## t128EmailAlertReplaceRules     | list    | None                                 | Alarm subjects that should be replaced.
 ## t128EmailAlertMailInterval     | integer | 60                                   | The time in seconds the service will pause to collect additional alarms before
 ##                                |         |                                      | sending an e-mail.  A value of 0 will cause the service to send each alarm
 ##                                |         |                                      | in its own e-mail message
@@ -46,8 +47,8 @@ Setup configuration options for email alerting (HA):
             "api_key": "{{ pillar['t128EmailAlertT128Token'] }}",
             "filter_duplicate_alarms": {{ pillar['t128EmailAlertFilterDuplicates'] | default('false') }},
         {%- if pillar['t128EmailAlertIgnoreSubjects'] %}
-            "ignore_subjects": {{ pillar['t128EmailAlertIgnoreSubjects']|json }}
-        {%- endif %},
+            "ignore_subjects": {{ pillar['t128EmailAlertIgnoreSubjects']|json }},
+        {%- endif %}
             "mail_interval": {{ pillar['t128EmailAlertMailInterval'] | default(60) }},
             "mail_from": "{{ pillar['t128EmailAlertMailFrom'] | default('t128-email-alarms') }}",
             "mail_recipients":
@@ -57,6 +58,9 @@ Setup configuration options for email alerting (HA):
                 {"default": "root"}
         {%- endif %},
             "not_send_cleared_alarms": true,
+        {%- if pillar['t128EmailAlertReplaceRules'] %}
+            "replace_rules": {{ pillar['t128EmailAlertReplaceRules']|json }},
+        {%- endif %}
             "template": "{{ pillar['t128EmailAlertMailTemplate'] | default('/etc/t128-email-alarms-ha.template') }}"
         }
 

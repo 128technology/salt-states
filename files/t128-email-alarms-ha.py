@@ -29,11 +29,13 @@ except NameError:
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 DEBUG = False
+TESTING = False
 DRY_RUN = False
 config = None
 mail_interval = 60
 template = None
 alarms = []
+cleaned_duplicates = 0
 
 
 def parse_arguments():
@@ -45,6 +47,8 @@ def parse_arguments():
     parser.add_argument('--debug', help='enable debug messages',
                         action='store_true')
     parser.add_argument('--dry-run', help='do not send mails',
+                        action='store_true')
+    parser.add_argument('--testing', help='enable testing mode',
                         action='store_true')
     return parser.parse_args()
 
@@ -77,6 +81,12 @@ def info(*messages):
     log('INFO:', *messages)
 
 
+def testing(*messages):
+    """Log debug messages."""
+    if TESTING:
+        log('TESTING:', *messages)
+
+
 def get_host_ips():
     """Return a list of IP addresses of the host that runs the script."""
     ips = check_output(['hostname', '--all-ip-addresses']).decode('utf8')
@@ -95,7 +105,11 @@ def node_is_active():
     # lexically sort node names:
     # * return True if we are the first one
     # * else return True if the other peer is unreachable
-    global_init = read_json('/etc/128technology/global.init')
+    try:
+        global_init = read_json('/etc/128technology/global.init')
+    except FileNotFoundError:
+        return True
+
     control = global_init['init']['control']
     if control:
         # Running on a router
@@ -172,27 +186,87 @@ def send_mail(mail_from, mail_recipients, body):
     server.quit()
 
 
+def write_alarms(alarms):
+    """Write alarms to json file."""
+    processed_alarms = alarms
+    try:
+        with open('/tmp/processed_alarms.json', 'r') as fd:
+            processed_alarms = json.load(fd)
+            processed_alarms.extend(alarms)
+    except FileNotFoundError:
+        pass
+    with open('/tmp/processed_alarms.json', 'w') as fd:
+            json.dump(processed_alarms, fd)
+
+
+def replace_messages(alarms):
+    """Replace messages in alarms."""
+    for alarm in alarms:
+        for old, new in config.get('replace_rules', []):
+            orig = alarm['message']
+            changed = orig.replace(old, new)
+            if orig != changed:
+                debug('Message replaced:', orig, '=>', changed)
+                alarm['message'] = changed
+
+
+def get_hash(alarm):
+    """Calculate hash of an alarm."""
+    if config.get('filter_duplicate_alarms', False):
+        # build the hash over almost the full alarm
+        hash_keys = [
+            'category', 'message', 'process', 'router', 'severity']
+        return '|'.join([v for k, v in alarm.items() if k in hash_keys])
+    else:
+        # only use the id
+        return alarm['id']
+
+
+def filter_duplicate_alarms(alarms):
+    """Filter alarms if already seen in interval."""
+    global cleaned_duplicates
+    seen_hashes = []
+    seen_add_ids = []
+    distinct_alarms = []
+    testing('all alarms:', len(alarms))
+    for alarm in alarms:
+        subtype = alarm['subtype']
+        hash = get_hash(alarm)
+        if (hash, subtype) in seen_hashes:
+            debug('found duplicate:', hash, subtype)
+            cleaned_duplicates += 1
+            continue
+        seen_hashes.append((hash, subtype))
+        distinct_alarms.append(alarm)
+    return distinct_alarms
+
+
 def filter_cleared_alarms(alarms):
     """Filter alarms if already cleared in interval."""
     seen_alarms = {}
     for alarm in alarms:
-        id = alarm['id']
+        hash = get_hash(alarm)
         if alarm['subtype'] == 'ADD':
             # we got an add alarm so push it
-            seen_alarms[id] = alarm
+            seen_alarms[hash] = alarm
         elif alarm['subtype'] == 'CLEAR':
-            if id in seen_alarms and seen_alarms[id]['subtype'] == 'ADD':
+            if hash in seen_alarms and seen_alarms[hash]['subtype'] == 'ADD':
                 debug('Popping alarm because clear came within interval.')
-                del(seen_alarms[id])
+                del(seen_alarms[hash])
             else:
                 debug('We got a clear that does not match an existing alarm.')
-                seen_alarms[id] = alarm
+                seen_alarms[hash] = alarm
+    testing('added + cleared alarms:', len(alarms),
+            'after cleaning add/clear:', len(seen_alarms))
     return list(seen_alarms.values())
 
 
 def handle_alarms(queue_lock):
     """Consume an alarm."""
     global alarms
+
+    if TESTING:
+        time.sleep(1)
 
     if not alarms:
         # nothing to do during this interval
@@ -208,6 +282,9 @@ def handle_alarms(queue_lock):
     # send a mail to configured recipients dependent on the router
     with queue_lock:
         debug('{} alarms in the queue'.format(len(alarms)))
+        replace_messages(alarms)
+        if config.get('filter_duplicate_alarms', False):
+            alarms = filter_duplicate_alarms(alarms)
         if config.get('not_send_cleared_alarms', False):
             alarms = filter_cleared_alarms(alarms)
         for alarm in alarms:
@@ -218,7 +295,7 @@ def handle_alarms(queue_lock):
             router = alarm['router']
             if router in all_recipients:
                 mail_recipients = all_recipients[router]
-            if type(mail_recipients) in (str, unicode):
+            if type(mail_recipients) != list:
                 mail_recipients = [mail_recipients]
             mail_recipients_str = ', '.join(mail_recipients)
             email_body = create_email_body(
@@ -229,8 +306,12 @@ def handle_alarms(queue_lock):
                 continue
             info('Sending mail to {} for alarm id {}'.format(
                 mail_recipients_str, alarm['id']))
-            send_mail(mail_from, mail_recipients, email_body)
+            if not TESTING:
+                send_mail(mail_from, mail_recipients, email_body)
+        write_alarms(alarms)
+        testing('remaining alarms:', len(alarms))
         alarms = []
+        testing('cleaned_duplicates:', cleaned_duplicates)
 
 
 def handle_alarms_thread(queue_lock):
@@ -245,11 +326,20 @@ def receive_alarms(queue_lock):
     global alarms
     url = 'https://{}/api/v1/events?token={}'.format(
         config['api_host'], config['api_key'])
+    i = 0
     while True:
+        if TESTING and i > 0:
+            break
+        i = 1
         try:
-            r = requests.get(url, stream=True, verify=False)
-            for line in r.iter_lines():
-                line = line.decode('utf-8')
+            if TESTING:
+                iterator = open('alarms-stream.txt').readlines()
+            else:
+                r = requests.get(url, stream=True, verify=False)
+                iterator = r.iter_lines()
+            for line in iterator:
+                if type(line) is bytes:
+                    line = line.decode('utf-8')
                 if not line.startswith('data: '):
                     continue
 
@@ -262,7 +352,7 @@ def receive_alarms(queue_lock):
                 alarm['subtype'] = event['subtype']
 
                 subject_match = False
-                for subject in config['ignore_subjects']:
+                for subject in config.get('ignore_subjects', []):
                     if subject in alarm['message']:
                         subject_match = True
                 if subject_match:
@@ -274,6 +364,7 @@ def receive_alarms(queue_lock):
                         # queue an alarm
                         debug('receiver: {} alarms in the queue'.format(
                             len(alarms)))
+                        alarm['ts'] = int(time.time())
                         alarms.append(alarm)
                     if mail_interval == 0:
                         # synchronous processing
@@ -286,16 +377,16 @@ def receive_alarms(queue_lock):
 
 def main():
     global DEBUG
+    global TESTING
     global DRY_RUN
     global config
     global mail_interval
     global template
     args = parse_arguments()
     DEBUG = args.debug
+    TESTING = args.testing
     DRY_RUN = args.dry_run
     config = read_json(args.config_file)
-    if not config.get('ignore_subjects'):
-        config['ignore_subjects'] = []
     mail_interval = config.get('mail_interval', 60)
     template = get_template()
 
@@ -307,8 +398,12 @@ def main():
     threads.append(receiver)
 
     if mail_interval > 0:
-        consumer = threading.Thread(
-            target=handle_alarms_thread, args=(queue_lock,))
+        if TESTING:
+            consumer = threading.Thread(
+                target=handle_alarms, args=(queue_lock,))
+        else:
+            consumer = threading.Thread(
+                target=handle_alarms_thread, args=(queue_lock,))
         consumer.start()
         threads.append(consumer)
 
