@@ -45,20 +45,20 @@ Setup configuration options for email alerting (HA):
         {
             "api_host": "{{ pillar['t128EmailAlertT128Address'] | default('localhost') }}",
             "api_key": "{{ pillar['t128EmailAlertT128Token'] }}",
-            "filter_duplicate_alarms": {{ pillar['t128EmailAlertFilterDuplicates'] | default('false') }},
-        {%- if pillar['t128EmailAlertIgnoreSubjects'] %}
+            "filter_duplicate_alarms": {{ pillar['t128EmailAlertFilterDuplicates'] | json | default('false') }},
+        {%- if pillar['t128EmailAlertIgnoreSubjects'] | default(False) %}
             "ignore_subjects": {{ pillar['t128EmailAlertIgnoreSubjects']|json }},
         {%- endif %}
             "mail_interval": {{ pillar['t128EmailAlertMailInterval'] | default(60) }},
             "mail_from": "{{ pillar['t128EmailAlertMailFrom'] | default('t128-email-alarms') }}",
             "mail_recipients":
-        {%- if pillar['t128EmailAlertMailRecipients'] %}
+        {%- if pillar['t128EmailAlertMailRecipients'] | default(False) %}
             {{ pillar['t128EmailAlertMailRecipients']|json }}
         {%- else %}
                 {"default": "root"}
         {%- endif %},
             "not_send_cleared_alarms": true,
-        {%- if pillar['t128EmailAlertReplaceRules'] %}
+        {%- if pillar['t128EmailAlertReplaceRules'] | default(False) %}
             "replace_rules": {{ pillar['t128EmailAlertReplaceRules']|json }},
         {%- endif %}
             "template": "{{ pillar['t128EmailAlertMailTemplate'] | default('/etc/t128-email-alarms-ha.template') }}"
