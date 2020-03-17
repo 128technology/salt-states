@@ -199,6 +199,33 @@ def write_alarms(alarms):
             json.dump(processed_alarms, fd)
 
 
+def get_interface_description(router, node, interface):
+    """Retrieve interface description."""
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer {}'.format(config['api_key']),
+    }
+    url = 'https://{}/api/v1/graphql'.format(config['api_host'])
+    query = '{ allRouters(name: "' + router + \
+        '") { nodes { nodes(name: "' + node + '") { nodes { '\
+        'deviceInterfaces(name: "' + interface + \
+        '") { nodes { description } } } } } } }'
+    request = requests.post(
+        url, headers=headers, verify=False, json={'query': query})
+    if request.status_code == 200:
+        try:
+            description = request.json()['data']['allRouters']['nodes'][0]\
+                ['nodes']['nodes'][0]['deviceInterfaces']\
+                ['nodes'][0]['description']
+            return description
+        except KeyError:
+            return None
+    else:
+        raise Exception(
+            "Query failed to run by returning code of {}. {}".format(
+                request.status_code, query))
+
+
 def replace_messages(alarms):
     """Replace messages in alarms."""
     for alarm in alarms:
@@ -288,6 +315,24 @@ def handle_alarms(queue_lock):
         if config.get('not_send_cleared_alarms', False):
             alarms = filter_cleared_alarms(alarms)
         for alarm in alarms:
+            # lookup device interface
+            message = alarm['message']
+            router = alarm['router']
+            node = alarm['node']
+            key = 'DeviceName:'
+            if key in message:
+                try:
+                    device_field = [f for f in message.split('|') if key in f]
+                    device = device_field[0].replace(key, '').strip()
+                    description = get_interface_description(
+                        router, node, device)
+                    interface_string = device
+                    if description:
+                        interface_string = '{} ({})'.format(
+                            device, description)
+                    alarm['interface_description'] = interface_string
+                except IndexError:
+                    pass
             # lookup recipients
             mail_from = config['mail_from']
             all_recipients = config['mail_recipients']

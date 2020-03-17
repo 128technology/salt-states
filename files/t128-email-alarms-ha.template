@@ -10,3 +10,6 @@ Node:     {{ alarm.node }}
 Category: {{ alarm.category }}
 Message:  {{ alarm.message }}
 Source:   {{ alarm.source }}
+{% if 'interface_description' in alarm -%}
+Interface:   {{ alarm.interface_description }}
+{%- endif %}
