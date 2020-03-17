@@ -94,3 +94,4 @@ Start and enable email alerting service (HA):
     - enable: True
     - watch:
       - file: {{ t128_email_alarms_config_path }}
+      - file: {{ t128_email_alarms_script_path }}
