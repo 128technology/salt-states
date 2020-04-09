@@ -147,7 +147,7 @@ def get_suffix(run, server_id=None):
     """Generate suffix on run timestamp and server_id."""
     suffix = run
     if server_id:
-        suffix = '{}_{}'.format(suffix, server)
+        suffix = '{}_{}'.format(suffix, server_id)
     return suffix
 
 
