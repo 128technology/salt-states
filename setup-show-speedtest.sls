@@ -1,9 +1,14 @@
 # Install t128-show-speedtest
 
-speedtest-cli:
+speedtest repo:
   file.managed:
     - user: root
     - group: root
-    - mode: 755
-    - name: /usr/bin/speedtest-cli
-    - source: salt://files/speedtest-cli
+    - mode: 644
+    - name: /etc/yum.repos.d/bintray-ookla-rhel.repo
+    - source: https://bintray.com/ookla/rhel/rpm
+    - skip_verify: True
+
+speedtest:
+  pkg:
+    - installed

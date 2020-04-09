@@ -10,7 +10,7 @@ On the conductor apply the salt-state `setup-show-speedtest.sls`:
 ```
 $ t128-salt '*' state.apply setup-show-speedtest
 ```
-This installs `speedtest-cli` on all attached routers.
+This installs `speedtest` on all attached routers.
 
 To install the main script run on the conductor:
 
@@ -42,7 +42,7 @@ $ curl -X POST "https://<conductor-fqdn>/api/v1/login" \
 ```
 The API key starts with `eyJhbGciOiJSUzI1NiIs...`
 
-## Skript Configuration
+## Script Configuration
 Once a REST API key has been generated, copy it to the config file `/etc/t128-show-speedtest.config` (which is in json format) to `api_key`:
 
 ```
@@ -53,13 +53,13 @@ Once a REST API key has been generated, copy it to the config file `/etc/t128-sh
 ```
 
 The `default_interfaces` list is used by the script to identify the device-interface which is connected to the internet and has a default (service) route.
-`speedtest-cli` automatically finds the best server to be used for measurements.
+The `speedtest` tool automatically finds the best server to be used for measurements.
 
 In order to measure additional device-interfaces specify the name of the interface followed by a speedtest server id.
-Available server ids can be retrieved using `speedtest-cli` on a router:
+Available server ids can be retrieved using `speedtest` on a router:
  
 ```
-$ speedtest-cli --list
+$ speedtest --servers
 ```
 
 ```
@@ -142,7 +142,7 @@ nameserver 8.8.8.8
 For additional interface measurements another service and service-route is needed for each interface. For example server id `30593` resolves to `speed1.syseleven.net` with IP address `37.49.159.242`.
 
 ```
-$ speedtest-cli --json --no-upload --server 30593 | python -m json.tool | grep host
+$ speedtest -f json --server-id=30593 | python -m json.tool | grep host
          "host": "speed1.syseleven.net:8080",
 ```
 

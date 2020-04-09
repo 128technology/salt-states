@@ -5,6 +5,7 @@ import argparse
 from datetime import datetime
 import json
 import sys
+import time
 
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -98,21 +99,56 @@ def warn(*messages):
     log('WARNING:', *messages)
 
 
-def run_speedtest(asset_id, server=None):
-    cmd = 'speedtest-cli --json'
-    if server:
-        cmd = '{} --server {}'.format(cmd, server)
+def salt_run(asset_id, cmd):
+    """Run a command on salt minion."""
     local = salt.client.LocalClient('/etc/128technology/salt/master')
+    result = local.cmd(asset_id, 'cmd.run', [cmd])[asset_id]
+    if 'command not found' in result:
+        warn('Error on node:', asset_id, result)
+    return result
+
+
+def salt_run_async(asset_id, cmd):
+    """Run a command on salt minion."""
+    local = salt.client.LocalClient('/etc/128technology/salt/master')
+    local.cmd_async(asset_id, 'cmd.run', [cmd])
+
+
+def retrieve_result(asset_id, suffix):
+    results = {}
+    cmd = 'cat /tmp/speedtest_{}.json'.format(suffix)
     try:
-        result = local.cmd(asset_id, 'cmd.run', [cmd])[asset_id]
-        if 'command not found' in result:
-            warn('Error on node:', asset_id, result)
+        result = salt_run(asset_id, cmd)
         results_dict = json.loads(result)
-        download = int(results_dict['download']/1000000)
-        upload = int(results_dict['upload']/1000000)
+        download = int(results_dict['download']['bandwidth']*8/1000000)
+        upload = int(results_dict['upload']['bandwidth']*8/1000000)
         return (download, upload)
     except (TypeError, KeyError, ValueError):
         return None
+
+
+def run_speedtest(asset_id, suffix, server=None):
+    inner_cmd = 'speedtest --format=json --accept-license --accept-gdpr'
+    if server:
+        inner_cmd = '{} --server-id {}'.format(inner_cmd, server)
+        suffix = '{}_{}'.format(suffix, server)
+    cmd = 'screen -dm bash -c "HOME=/root {} > /tmp/speedtest_{}.json"'.format(
+        inner_cmd, suffix)
+    try:
+        salt_run_async(asset_id, cmd)
+        # wait for the speedtest to be finished
+        time.sleep(40)
+    except (TypeError, KeyError, ValueError):
+        warn('No speedtest result for:', router_name)
+        raise NoResultException
+
+
+def get_suffix(run, server_id=None):
+    """Generate suffix on run timestamp and server_id."""
+    suffix = run
+    if server_id:
+        suffix = '{}_{}'.format(suffix, server)
+    return suffix
 
 
 def main():
@@ -122,6 +158,7 @@ def main():
     prefix = config['prefix']
     sys.stdout.close()
 
+    run = int(time.time())
     for router in api.get_routers():
         router_name = router['name']
 
@@ -154,34 +191,36 @@ def main():
         # Lookup interfaces:
         # * use default for known default interfaces
         # * use extra interfaces with specific server (see config)
-        speedtest_results = []
+        suffixes = []
+        stats = []
         interfaces = api.get_interfaces(router_name, node_name)
         try:
             # seek for default interface
             for interface in config['default_interfaces']:
                 if interface in interfaces:
-                    result = run_speedtest(asset_id)
-                    if not result:
-                        warn('No speedtest result for:', router_name)
-                        raise NoResultException
-                    download, upload = result
-                    speedtest_results.append((interface, download, upload))
+                    suffix = get_suffix(run)
+                    run_speedtest(asset_id, suffix)
+                    suffixes.append((suffix, interface))
+                    break
 
             # seek for extra_interfaces
             extra_interfaces = config['extra_interfaces']
             for interface in extra_interfaces:
                 if interface in interfaces:
                     server = extra_interfaces[interface]
-                    result = run_speedtest(asset_id, server)
-                    if not result:
-                        warn('No speedtest result for:', router_name)
-                        raise NoResultException
-                    download, upload = result
-                    speedtest_results.append((interface, download, upload))
+                    suffix = get_suffix(run, server)
+                    run_speedtest(asset_id, suffix, server)
+                    suffixes.append((suffix, interface))
 
-            stats = []
-            for result in speedtest_results:
-                stats.append('{}: {} Mbps down | {} Mbps up'.format(*result))
+            # retrieve result in json format
+            for suffix, interface in suffixes:
+                result = retrieve_result(asset_id, suffix)
+                if not result:
+                    warn('No speedtest result for:', router_name)
+                    raise NoResultException
+                download, upload = result
+                stats.append('{}: {} Mbps down | {} Mbps up'.format(
+                    interface, download, upload))
             if not stats:
                 continue
             info('{}: {}'.format(router_name, ' / '.join(stats)))
