@@ -14,6 +14,14 @@ import salt.client
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
+class UnauthorizedException(Exception):
+    def __init__(self, content):
+        message = content['message']
+        if message == 'Username/password incorrect.':
+            message = 'REST API token is invalid'
+        fatal(message)
+
+
 class RestApi:
     """Representation of REST connection."""
 
@@ -32,7 +40,10 @@ class RestApi:
         """Get data per REST API."""
         url = self.base_url.format(self.conductor, location)
         response = requests.get(url, headers=self.headers, verify=False)
-        return response.json()
+        content = response.json()
+        if response.status_code == 401:
+            raise UnauthorizedException(content)
+        return content
 
     def post(self, location, data):
         """Send data per REST API via post."""
@@ -70,10 +81,6 @@ class RestApi:
         return self.post('/config/commit', '{ "distributed": true }')
 
 
-class NoResultException(Exception):
-    pass
-
-
 def parse_arguments():
     """Get commandline arguments."""
     parser = argparse.ArgumentParser(
@@ -97,6 +104,11 @@ def info(*messages):
 
 def warn(*messages):
     log('WARNING:', *messages)
+
+
+def fatal(*messages):
+    log('FATAL:', *messages)
+    sys.exit(1)
 
 
 def salt_run(asset_id, cmd):
@@ -127,11 +139,10 @@ def retrieve_result(asset_id, suffix):
         return None
 
 
-def run_speedtest(asset_id, suffix, server=None):
+def run_speedtest(asset_id, suffix, server_id=None):
     inner_cmd = 'speedtest --format=json --accept-license --accept-gdpr'
-    if server:
-        inner_cmd = '{} --server-id {}'.format(inner_cmd, server)
-        suffix = '{}_{}'.format(suffix, server)
+    if server_id:
+        inner_cmd = '{} --server-id {}'.format(inner_cmd, server_id)
     cmd = 'screen -dm bash -c "HOME=/root {} > /tmp/speedtest_{}.json"'.format(
         inner_cmd, suffix)
     try:
@@ -139,8 +150,7 @@ def run_speedtest(asset_id, suffix, server=None):
         # wait for the speedtest to be finished
         time.sleep(40)
     except (TypeError, KeyError, ValueError):
-        warn('No speedtest result for:', router_name)
-        raise NoResultException
+        warn('Exception in run_speedtest on asset_id:', asset_id)
 
 
 def get_suffix(run, server_id=None):
@@ -207,29 +217,34 @@ def main():
             extra_interfaces = config['extra_interfaces']
             for interface in extra_interfaces:
                 if interface in interfaces:
-                    server = extra_interfaces[interface]
-                    suffix = get_suffix(run, server)
-                    run_speedtest(asset_id, suffix, server)
+                    server_id = extra_interfaces[interface]
+                    suffix = get_suffix(run, server_id)
+                    run_speedtest(asset_id, suffix, server_id)
                     suffixes.append((suffix, interface))
 
             # retrieve result in json format
+            received_results = False
             for suffix, interface in suffixes:
                 result = retrieve_result(asset_id, suffix)
                 if not result:
-                    warn('No speedtest result for:', router_name)
-                    raise NoResultException
+                    warn('No speedtest result for {} on interface {}'.format(
+                         router_name, interface))
+                    stats.append('{}: No results'.format(interface))
+                    continue
+                received_results = True
                 download, upload = result
                 stats.append('{}: {} Mbps down | {} Mbps up'.format(
                     interface, download, upload))
-            if not stats:
+            if not received_results:
                 continue
             info('{}: {}'.format(router_name, ' / '.join(stats)))
             description = '{}: {}'.format(prefix, ' / '.join(stats))
             api.set_description(router_name, description)
             api.commit()
 
-        except NoResultException:
-            pass
+        except:
+            raise
+
 
 if __name__ == '__main__':
     main()
