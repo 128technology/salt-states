@@ -164,7 +164,10 @@ def delete_user(name):
         return False
 
     try:
-        return resp.json()['data']['deleteUser']
+        if resp.json()['data']['deleteUser']:
+            return True
+        else:
+            return False
     except KeyError:
         log.debug("GraphQL Response: {}".format(resp.json()))
         return False
