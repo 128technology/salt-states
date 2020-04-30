@@ -94,12 +94,12 @@ The syntax to add a router is: `salt-call t128_config_template.add_router <templ
 For example, to add one of the routers following the example above, use: **salt-call t128_config_template.add_router sample test1**
 
 #### Deleting a router ####
-The syntax to delete a router is: `salt-call t128_config_template.delete_router <router name>`.  The only option for this is:
-* **<router name>** - The name of the router to delete from the config.  The module will pull the configuration and parse it looking for elements to delete related to the router.
+The syntax to delete a router is: `salt-call t128_config_template.delete_router <router_name>`.  The only option for this is:
+* __router_ name__ - The name of the router to delete from the config.  The module will pull the configuration and parse it looking for elements to delete related to the router.
 
-For example, to delete one of the routers following the example above, use: ** salt-call t128_config_tepmlate.delete_rotuer test1**
+For example, to delete one of the routers following the example above, use: **salt-call t128_config_tepmlate.delete_rotuer test1**
 
-Note, many of the actions needed in the delete configuration are typically no longer necessary due to config generation.  But we will leave the code for legacy purposes.
+**Note:** many of the actions needed in the delete configuration are typically no longer necessary due to config generation.  But we will leave the code for legacy purposes.
 
 ### t128_users ###
 Both an execution module and state module are provided for managing local user accounts for the 128T.  
@@ -110,10 +110,10 @@ The execution module leverages the local GraphQL API to query, add, delete, and 
 * **get_users** - This function will return a dictionary of the 128T users configured on the router along with all configured options (minus the password).  This function takes no arguments.  If there is any issue retreiving the data, the function will return `False`.
 * **add_user** - This function will create a user with any provided arguments. If the user already exists, or if there are any other issues adding the user, this function will return `False`.  It will return `True` if the function succeeded.  The possible function arguments are:
     * **name** - This is the username of the user to be added.  This argument is required.
-    * **password=<password>** - The user's password.  This is passed as a keyword argument.  This argument is required.  At the moment, this only accepts an unhashed password value.
-    * **role=<role>** - The user's role.  This is passed as a keyword argument.  The system expects either `admin` or `user`.  The system allows this to be passed as a list.  If a string is passed, it will be converted to a list.  If this option is not present the value of `user` will be used.
-    * **enabled=<enabled>** - Whether the account should be enabled or disabled.  A boolean value must be passed.  If this option is not present the value of `True` will be used.
-    * **fullName=<Full Name>** - The full name of the use.  This value is optional.
+    * **password=*password*** - The user's password.  This is passed as a keyword argument.  This argument is required.  At the moment, this only accepts an unhashed password value.
+    * **role=*role*** - The user's role.  This is passed as a keyword argument.  The system expects either `admin` or `user`.  The system allows this to be passed as a list.  If a string is passed, it will be converted to a list.  If this option is not present the value of `user` will be used.
+    * **enabled=*enabled*** - Whether the account should be enabled or disabled.  A boolean value must be passed.  If this option is not present the value of `True` will be used.
+    * **fullName=*Full Name*** - The full name of the use.  This value is optional.
 * **modify_user** - This function will modify an existing user with any provided arguments.  If the user does not exist, or if there are any other issues, this function will return `False`.  It will return `True` if the operation succeeded.  This function will accept any of the options provided with the **add_user** function.  The `name` value is required.  Only keyword arguments passed will be changed.
 * **delete_user** - This function will delete an existing user.  The only option supported is the `name` of the user.  This function will return `False` if the user did not exist or if there was an issue deleting the user.  It will return `True` if it was successful
 
