@@ -3,3 +3,4 @@ sync.sls
 top.sls
 *top.sls
 templates/
+__pycache__
