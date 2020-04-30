@@ -4,3 +4,4 @@ top.sls
 *top.sls
 templates/
 __pycache__
+config_templates
