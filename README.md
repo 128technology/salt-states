@@ -62,6 +62,7 @@ This template will depend on these variables:
 * name
 * router.address
 * router.prefix
+
 All Jinja variables names pulled from pillar should start with `router.` except `name`.
 
 #### Router data as pillar ####
@@ -86,9 +87,9 @@ Substitute the appropriate conductor minion id for `conductor`.
 Once there is a config template and pillar data available, the module is ready to be used.  The following functions can be used to add or delete a router from the conductor.
 
 ##### Adding a Router #####
-The syntax to add a router is: `salt-call t128_config_template.add_router <template name> <router name>`.  These are the two options:
-* **<template name>** - The name of the template to render.  This is the filename of the template found in the `/srv/salt/config_templates` directory minus the `.jinja` extension
-* **<router name>** - The name of the router to use in rendering the template.  This is the key that will be used to look for router data in the conductor's salt pillar.
+The syntax to add a router is: `salt-call t128_config_template.add_router <template_name> <router_name>`.  These are the two options:
+* __template_name__ - The name of the template to render.  This is the filename of the template found in the `/srv/salt/config_templates` directory minus the `.jinja` extension
+* __router_name__ - The name of the router to use in rendering the template.  This is the key that will be used to look for router data in the conductor's salt pillar.
 
 For example, to add one of the routers following the example above, use: **salt-call t128_config_template.add_router sample test1**
 
