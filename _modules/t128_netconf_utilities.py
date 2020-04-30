@@ -102,8 +102,8 @@ class t128ConfigHelper(object):
       if config_status.ok:
           commit_status = t128_configurator.commit(validationType=validationType)
           if commit_status.ok:
-              print "Configuration committed successfully"
+              print("Configuration committed successfully")
           else:
-              print "There was an error committing the config"
+              print("There was an error committing the config")
       else:
-          print "There was an error adding the candidate config"
+          print("There was an error adding the candidate config")

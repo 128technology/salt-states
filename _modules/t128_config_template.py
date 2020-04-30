@@ -4,12 +4,16 @@ import os
 import jinja2
 import jinja2.exceptions
 import logging
+import sys
 import t128_netconf_utilities
 
 try:
   from lxml import etree
   from ncclient import manager
-  from ote_utils.utils import Config
+  if sys.version_info < (3, 6):
+    from ote_utils.utils import Config
+  else:
+    from ote_utils.netconfutils.netconfconverter import NetconfConverter
   IMPORT_SUCCESS = True
 except ImportError:
   IMPORT_SUCCESS = False
@@ -159,9 +163,14 @@ def add_router(template_name, router_name, validationType='distributed'):
   add_config = _create_add_config(template_name, router_name)
   if add_config:
     logger.debug("Rendered add router config: {0}".format(add_config))
-    cc = Config.Config()
-    cc.load_t128_config_model('/var/model/consolidatedT128Model.xml')
-    add_config_xml = cc.convert_config_to_netconf_xml(add_config.split('\n'))
+    if sys.version_info < (3,6):
+      cc = Config.Config()
+      cc.load_t128_config_model('/var/model/consolidatedT128Model.xml')
+      add_config_xml = cc.convert_config_to_netconf_xml(add_config.split('\n'))
+    else:
+      cc = NetconfConverter()
+      cc.load_config_model('/var/model/consolidatedT128Model.xml')
+      add_config_xml = cc.convert_config_to_netconf_xml(add_config.split('\n'), 'config')
     ch = t128_netconf_utilities.t128ConfigHelper()
     return ch.commit_config_xml(add_config_xml, validationType=validationType)
   else:

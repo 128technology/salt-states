@@ -1,7 +1,7 @@
 import subprocess
 
 def main():
-  routes = subprocess.check_output(['ip','r']).split('\n')
+  routes = subprocess.check_output(['ip','r']).decode().split('\n')
   gateways = {}
   for route in routes:
     if 'default' in route:
