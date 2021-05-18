@@ -31,13 +31,17 @@ config
 
     authority
 	
+       tenant  speedtest-wan1
+            name  speedtest-wan1
+        exit
+
         service  speedtest-wan1
             name                     speedtest-wan1
 
             address                  0.0.0.0/0
  
-             access-policy            speed-wan1
-                source  speed-wan1
+             access-policy            speedtest-wan1
+                source  speedtest-wan1
             exit
             share-service-routes     false
         exit
@@ -55,8 +59,8 @@ config
             exit
             address                  169.254.127.126/32
  
-             access-policy            speed-wan1
-                source  speed-wan1
+             access-policy            speedtest-wan1
+                source  speedtest-wan1
             exit
             share-service-routes     false
         exit
@@ -75,7 +79,7 @@ config
                     network-interface  speed-wan1
                         name               speed-wan1
                         default-route      true
-                        tenant             speed-wan1
+                        tenant             speedtest-wan1
 
                         management-vector
                             name      speed-wan1
