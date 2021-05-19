@@ -21,8 +21,6 @@ As described above there are configuration entities needed per test interface:
 * a tenant which identifies the speedtest instance
 * a corresponding service with an appropriate service-address (e.g. `0.0.0.0/0`)
 * a service-route to route the speedtest traffic via the test interface
-* a service to match DNS traffic over the test interface
-* a service-route for DNS traffic
 
 This is a sample config snippet for testing the wan1 interface:
 
@@ -46,25 +44,6 @@ config
             share-service-routes     false
         exit
         
-        service  speedtest-wan1-dns
-            name                     speedtest-wan1-dns
-            application-type         dns-proxy
-            transport                udp
-                protocol    udp
-
-                port-range  53
-                    start-port  53
-                    end-port    53
-                exit
-            exit
-            address                  169.254.127.126/32
- 
-             access-policy            speedtest-wan1
-                source  speedtest-wan1
-            exit
-            share-service-routes     false
-        exit
-
         router  sample-branch-router1
             name  sample-branch-router1
 
@@ -95,11 +74,6 @@ config
                 exit
             exit
             
-            dns-config  static
-                mode     static
-                address  8.8.8.8
-            exit
-
             service-route  speedtest-wan1
                 name          speedtest-wan1
                 service-name  speedtest-wan1
@@ -107,17 +81,6 @@ config
                 next-hop      node1 wan1
                     node-name  node1
                     interface  wan1
-                exit
-            exit
-            
-            service-route  speedtest-wan1-dns
-                name          speedtest-wan1-dns
-                service-name  speedtest-wan1-dns
-
-                next-hop      node1 wan1
-                    node-name  node1
-                    interface  wan1
-                    target-address  8.8.8.8
                 exit
             exit
             
@@ -136,10 +99,18 @@ base:
   '*':
     - speedtest
 $ sudo vi /srv/pillar/speedtest.sls
+# global dns servers for all interfaces
+dns-servers:
+  - 8.8.8.8
+  - 8.8.4.4
 test-interfaces:
   ookla:
-    - wan1
-    - lte1
+    wan1: {}
+    lte1:
+      # override dns servers for this interface
+      dns-servers:
+        - 1.1.1.1
+        - 9.9.9.9
   snmp:
     - mpls1
 # start hour and minute for the runner cronjob (times are typically in UTC)

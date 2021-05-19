@@ -3,6 +3,7 @@
 {% set schedule_hour_runner = pillar.get('schedule-hour-runner', 23) %}
 {% set schedule_minute_runner = pillar.get('schedule-minute-runner', 0) %}
 {% set max_delay = pillar.get('max-delay', 0) %}
+{% set default_nameservers = ('8.8.8.8', '8.8.4.4') %}
 
 speedtest tool:
   file.managed:
@@ -30,9 +31,28 @@ t128-kni-namespace-scripts:
   pkg:
     - installed
 
-{% for interface in test_interfaces.get('ookla', []) %}
+{% for interface, details in test_interfaces.get('ookla', {}).items() %}
+{% set namespace = 'speed-' ~ interface %}
+{% set nameservers = details.get('dns-servers', []) %}
+{% if not nameservers %}{% set nameservers = pillar.get('dns-servers', []) %}{% endif %}
+{% if not nameservers %}{% set nameservers = default_nameservers %}{% endif %}
+create namespace directory for {{interface}}:
+  file.directory:
+    - name: '/etc/netns/{{ namespace }}'
+    - user: root
+    - group: root
+    - makedirs: True
+create namespace resolv.conf for {{interface}}:
+  file.managed:
+    - name: '/etc/netns/{{ namespace }}/resolv.conf'
+    - user: root
+    - group: root
+    - contents:
+{% for nameserver in nameservers %}
+      - nameserver {{ nameserver }}
+{% endfor %}
+
 create speedtest namespace directory for {{interface}}:
-  {% set namespace = 'speed-' ~ interface %}
   {% set base_dir = '/etc/128technology/plugins/network-scripts/host/' ~ namespace %}
   file.directory:
     - name: {{ base_dir }}
@@ -44,11 +64,4 @@ create speedtest namespace script {{script}} for {{interface}}:
     - name: '{{ base_dir }}/{{ script }}'
     - target: /etc/128technology/plugins/network-scripts/default/kni_namespace/{{ script }}
 {% endfor %}
-create speedtest namespace configuration for {{interface}}:
-  file.managed:
-    - name: /var/lib/128technology/kni/host/{{ namespace }}.conf
-    - contents: |
-        # add host route for DNS
-        routing:
-          - '169.254.127.126 via {kni_gateway}'
 {% endfor %}

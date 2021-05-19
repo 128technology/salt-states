@@ -27,14 +27,15 @@ def parse_arguments():
 def get_interface_stats(host):
     stats = {}
     api = RestGraphqlApi(host=host)
-    query = '{ allNodes { nodes { deviceInterfaces { nodes { name type state { operationalStatus } } } } } }'
+    query = '{ allNodes { nodes { deviceInterfaces { nodes { networkInterfaces { nodes { name } } type state { operationalStatus } } } } } }'
     try:
         interfaces = api.query(query).json()['data']['allNodes']['nodes'][0]['deviceInterfaces']['nodes']
         for interface in interfaces:
+            network_interface_name = interface['networkInterfaces']['nodes'][0]['name']
             # ignore host interfaces
             if interface['type'] == 'host':
                 continue
-            stats[interface['name']] = {
+            stats[network_interface_name] = {
                 'type': interface['type'],
                 'up': interface['state']['operationalStatus'] == 'OPER_UP',
             }
