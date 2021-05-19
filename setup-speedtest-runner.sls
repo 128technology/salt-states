@@ -4,18 +4,13 @@
 {% set schedule_minute_runner = pillar.get('schedule-minute-runner', 0) %}
 {% set max_delay = pillar.get('max-delay', 0) %}
 
-speedtest repo:
+speedtest tool:
   file.managed:
     - user: root
     - group: root
-    - mode: 644
-    - name: /etc/yum.repos.d/bintray-ookla-rhel.repo
-    - source: https://bintray.com/ookla/rhel/rpm
-    - skip_verify: True
-
-speedtest:
-  pkg:
-    - installed
+    - mode: 755
+    - name: /usr/bin/speedtest
+    - source: salt://files/speedtest/speedtest
 
 speedtest runner script:
   file.managed:
