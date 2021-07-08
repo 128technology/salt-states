@@ -1,5 +1,5 @@
 # 128T Salt States #
-This repo contains salt states and modules that can be used along with the 128T Automated provizioner for full Zero Touch Provisioning of new 128T rotuers.  These states can alo be used to automate specific Linux functions on existing 128T routers.
+This repo contains salt states and modules that can be used along with the 128T Automated provizioner for full Zero Touch Provisioning of new 128T rotuers.  These states can also be used to automate specific Linux functions on existing 128T routers.
 
 ## Installation ##
 These states should be installed on a 128T Conductor in the /srv/salt directory.  The existing top.sls and dummy.sls files should be preserved, along with any other custom states that may have been created.
@@ -21,7 +21,7 @@ pip install yinsolidated
 ```
 
 ## Module Documentation ##
-Some sample modules are included in this library to help manage your 128T deployment.  Here is some light documentation for the modules
+Some sample modules are included in this library to help manage your 128T deployment.  Here is some light documentation for the modules.
 
 ### t128_config_template ###
 This execution module is provided as sample code for leveraging the Netconf API and Jinja templating to push templated configuration to the conductor.  This module uses the salt pillar infrastructure as a database of values to use when filling out templates.
@@ -107,13 +107,13 @@ Both an execution module and state module are provided for managing local user a
 #### Execution Module ####
 The execution module leverages the local GraphQL API to query, add, delete, and modify users.  This can be initiated from the conductor with the following syntax: `t128-salt <asset id> t128_users.<module function> [<function arguments>]`.  Here are the various functions provided along with their arguments:
 
-* **get_users** - This function will return a dictionary of the 128T users configured on the router along with all configured options (minus the password).  This function takes no arguments.  If there is any issue retreiving the data, the function will return `False`.
+* **get_users** - This function will return a dictionary of the 128T users configured on the router along with all configured options (minus the password).  This function takes no arguments.  If there is any issue retrieving the data, the function will return `False`.
 * **add_user** - This function will create a user with any provided arguments. If the user already exists, or if there are any other issues adding the user, this function will return `False`.  It will return `True` if the function succeeded.  The possible function arguments are:
     * **name** - This is the username of the user to be added.  This argument is required.
     * **password=*password*** - The user's password.  This is passed as a keyword argument.  This argument is required.  At the moment, this only accepts an unhashed password value.
     * **role=*role*** - The user's role.  This is passed as a keyword argument.  The system expects either `admin` or `user`.  The system allows this to be passed as a list.  If a string is passed, it will be converted to a list.  If this option is not present the value of `user` will be used.
     * **enabled=*enabled*** - Whether the account should be enabled or disabled.  A boolean value must be passed.  If this option is not present the value of `True` will be used.
-    * **fullName=*Full Name*** - The full name of the use.  This value is optional.
+    * **fullName=*Full Name*** - The full name of the user.  This value is optional.
 * **modify_user** - This function will modify an existing user with any provided arguments.  If the user does not exist, or if there are any other issues, this function will return `False`.  It will return `True` if the operation succeeded.  This function will accept any of the options provided with the **add_user** function.  The `name` value is required.  Only keyword arguments passed will be changed.
 * **delete_user** - This function will delete an existing user.  The only option supported is the `name` of the user.  This function will return `False` if the user did not exist or if there was an issue deleting the user.  It will return `True` if it was successful
 
