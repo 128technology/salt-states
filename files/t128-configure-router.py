@@ -126,6 +126,10 @@ def info(*messages):
     """Show error message and quit."""
     log('INFO:', *messages)
 
+def warning(*messages):
+    """Show error message and quit."""
+    log('WARNING:', *messages)
+
 
 def parse_arguments():
     """Get commandline arguments."""
@@ -151,7 +155,6 @@ def get_config(api, locations, router_name, node_name):
     for dict_key, tup in locations.items():
         location = tup[0].format(router=router_name, node=node_name)
         key = tup[1]
-        #print(location, key, '=', api.get('/config/running' + location).json()[key])
         config[dict_key] = api.get('/config/running' + location).json()[key]
     return config
 
@@ -166,7 +169,8 @@ def update_config(api, locations, router_name, node_name, changes):
 def show_changes(router_name, current_config, new_config, commit):
     if current_config == new_config:
         info('Nothing has changed.')
-        return
+        return {}
+
     if commit:
         mode = 'committed'
     else:
@@ -226,15 +230,20 @@ def main():
         new_config['maintenance-mode'] = False
 
     changes = show_changes(router_name, current_config, new_config, args.commit)
+    if not changes:
+        return
+
     if not args.yes:
         answer = input('Please confirm (y/n): ')
-        if answer.lower() in ('y', 'yes'):
-            update_config(api, locations, router_name, node_name, changes)
-            if args.commit:
-                api.post('/config/commit', {})
-                print('Changes from candidate to running config have been committed.')
-            else:
-                print('No --commit argument given. Candidate config has been updated, but NOT committed!')
+        if answer.lower() not in ('y', 'yes'):
+            return
+
+    update_config(api, locations, router_name, node_name, changes)
+    if args.commit:
+        api.post('/config/commit', {})
+        info('Changes from candidate to running config have been committed.')
+    else:
+        warning('No --commit argument given. Candidate config has been updated, but NOT committed!')
 
 
 if __name__ == '__main__':
