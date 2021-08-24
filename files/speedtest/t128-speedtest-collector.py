@@ -17,6 +17,7 @@ def parse_arguments():
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--host', default='localhost')
     parser.add_argument('--log-file', default=log.LOGFILE)
+    parser.add_argument('--max-age', default=12, type=int, help='maximum age of speedtest results (in hours)')
     parser.add_argument('--results-file', default='/var/lib/128technology/t128-speedtest-results.json')
     parser.add_argument('--router', action='append', default=[])
     args = parser.parse_args()
@@ -39,11 +40,12 @@ def update_descriptions(api, descriptions):
     api.post('/config/commit', {})
 
 
-def process_routers(api, results_file, routers, prefix='(Speedtest:', suffix=')'):
+def process_routers(api, results_file, routers, max_age, prefix='(Speedtest:', suffix=')'):
     """Iterate over routers and update the description field accordingly."""
     descriptions = []
     for router in api.get_routers():
         router_name = router['name']
+        debug('Process router:', router_name)
 
         # if a subset of routers is specified, check if current is listed
         if routers and router_name not in routers:
@@ -71,15 +73,23 @@ def process_routers(api, results_file, routers, prefix='(Speedtest:', suffix=')'
         results_dict = salt.retrieve_result(asset_id, results_file)
         if not results_dict:
             continue
+        debug('results_dict for asset {}: {}'.format(asset_id, results_dict))
 
         interface_strings = []
         for module, module_results in results_dict.items():
             for interface, interface_results in module_results.items():
+                if not interface_results.get('download') or \
+                   not interface_results.get('upload'):
+                    continue
+                if interface_results.get('ts') + max_age * 3600 < time.time():
+                    info('Ignoring too old results for router:', router_name)
+                    continue
                 download = int(interface_results['download']['bandwidth']*8/1000000)
                 upload = int(interface_results['upload']['bandwidth']*8/1000000)
                 interface_strings.append('{}: {} Mbps down, {} Mbps up'.format(
                     interface, download, upload))
 
+        if interface_strings:
             interface_description = '{} {}{}'.format(
                 prefix, ' | '.join(interface_strings), suffix)
             if description:
@@ -93,7 +103,8 @@ def process_routers(api, results_file, routers, prefix='(Speedtest:', suffix=')'
                 router_name,
                 description,
             ))
-        update_descriptions(api, descriptions)
+    debug('Descriptions: {}'.format(descriptions))
+    update_descriptions(api, descriptions)
 
 
 def main():
@@ -106,7 +117,7 @@ def main():
         fatal('Conductor has uncommitted changes.',
               'Quit here to avoid commit conflicts.')
 
-    process_routers(api, args.results_file, args.router)
+    process_routers(api, args.results_file, args.router, args.max_age)
 
 
 if __name__ == '__main__':
