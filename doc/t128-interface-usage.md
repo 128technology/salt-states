@@ -28,7 +28,7 @@ Finally, a cronjob like this has to be created:
 
 ```$ sudo crontab -e
 # call the collector script hourly
-* 0 * * *		/srv/salt/files/interface-usage/t128-interface-usage-collector.sh
+0 * * * *		/srv/salt/files/interface-usage/t128-interface-usage-collector.sh
 ```
 
 
