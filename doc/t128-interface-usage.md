@@ -12,7 +12,7 @@ The application consists of three parts:
 First, copy the web application files:
 
 ```
-$ cd /srv/salt/salt-states/files/interface-usage/
+$ cd /srv/salt/files/interface-usage/
 $ sudo cp -a webapp/ /var/www/128technology/t128-interface-usage/
 ```
 
@@ -28,7 +28,7 @@ Finally, a cronjob like this has to be created:
 
 ```$ sudo crontab -e
 # call the collector script hourly
-* 0 * * *		/srv/salt/salt-states/files/t128-interface-usage-collector.sh
+* 0 * * *		/srv/salt/files/interface-usage/t128-interface-usage-collector.sh
 ```
 
 
@@ -37,9 +37,9 @@ Finally, a cronjob like this has to be created:
 By default there is no configuration needed. The `t128-interface-usage-collector.sh` script allows to customize the stats collection process:
 
 ```
-$ vi /srv/salt/salt-states/files/t128-interface-usage-collector.sh
+$ sudo vi /srv/salt/files/interface-usage/t128-interface-usage-collector.sh
 ...
-script=/srv/salt/salt-states/files/t128-interface-usage.pyz
+script=/srv/salt/files/t128-interface-usage.pyz
 # start new statistics capture - ensure buckets are reset every month
 options=--buckets-file t128-interface-usage-buckets-$(date '+%Y%m').json
 
