@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <title>Interface Usage</title>
+    <style>
+    .placeholder {
+      padding-left: 1em;
+    }
+    </style>
+    <script type="text/javascript">
+      var usage_data;
+      var interfaces;
+      var limit = 20;
+      var filter_keyword = '';
+      var order_col = '';
+      var order_asc = true;
+      var icon_asc  = '<span class="placeholder"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" fill="currentColor" class="bi bi-arrow-up-square" viewBox="0 0 19 19"><path fill-rule="evenodd" d="M15 2a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2zM0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm8.5 9.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11.5z"/></svg></span>';
+      var icon_desc = '<span class="placeholder"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" fill="currentColor" class="bi bi-arrow-down-square" viewBox="0 0 19 19"><path fill-rule="evenodd" d="M15 2a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2zM0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm8.5 2.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V4.5z"/></svg></span>';
+
+      /**
+       * Format bytes as human-readable text.
+       *
+       * @param bytes Number of bytes.
+       * @param si True to use metric (SI) units, aka powers of 1000. False to use
+       *           binary (IEC), aka powers of 1024.
+       * @param dp Number of decimal places to display.
+       *
+       * @return Formatted string.
+       */
+      function humanFileSize(bytes, si=false, dp=1) {
+        const thresh = si ? 1000 : 1024;
+        if (Math.abs(bytes) < thresh) {
+          return bytes + ' B';
+        }
+        const units = si
+          ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+          : ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+        let u = -1;
+        const r = 10**dp;
+        do {
+          bytes /= thresh;
+          ++u;
+        } while (Math.round(Math.abs(bytes) * r) / r >= thresh && u < units.length - 1);
+        return bytes.toFixed(dp) + ' ' + units[u];
+      }
+
+      function removeElementsByClass(className){
+          const elements = document.getElementsByClassName(className);
+          while(elements.length > 0){
+              elements[0].parentNode.removeChild(elements[0]);
+          }
+      }
+
+      function fetch_usage_data(callback) {
+        var url = 't128-interface-usages.json';
+        var request = new XMLHttpRequest();
+        request.open('GET', url);
+        request.responseType = 'json';
+        request.send();
+        request.onload = function() {
+          usage_data = request.response;
+          callback();
+        }
+      }
+
+      function getUserToken() {
+        const userRaw = window.sessionStorage.getItem('user') || '{}';
+        const user = JSON.parse(userRaw);
+        return user.token;
+      }
+
+      function check_authentication() {
+        // if not authenticated redirect to login
+        if (! getUserToken()) {
+          window.location.replace('/');
+        }
+      }
+
+      function init_table() {
+        check_authentication();
+
+        fetch_usage_data(populate_table_header);
+        // retrieve limit = number of rows
+        const query_string = window.location.search;
+        const url_params = new URLSearchParams(query_string);
+        const cookie_limit = get_cookie_value('limit');
+        const get_limit = url_params.get('limit');
+        if (cookie_limit) {
+          limit = cookie_limit;
+        }
+        if (get_limit) {
+          limit = get_limit;
+        }
+
+        var input_field = document.getElementById('input_limit');
+        input_field.placeholder = limit;
+      }
+
+      function populate_table_header() {
+        var routers_table = document.getElementById('routers');
+        var thead = routers_table.getElementsByTagName('thead')[0];
+        var row = document.createElement('tr');
+        var fixed_columns = ['router', 'node'];
+
+        interfaces = fixed_columns.concat(usage_data['interfaces']);
+        for (var i=0; i<interfaces.length; i++) {
+          var col = document.createElement('th');
+          // set column name to interface with capitalized first char
+          col.innerHTML = interfaces[i].replace(/^\w/, (c) => c.toUpperCase());
+          col.id = interfaces[i];
+          if (i > 1) {
+            col.addEventListener("click", function() {
+              if (order_col == this.id) {
+                order_asc = !order_asc;
+              }
+              else {
+                order_col = this.id;
+                order_asc = false;
+              }
+              removeElementsByClass('placeholder');
+
+              if (order_asc) {
+                this.innerHTML = this.id + icon_asc;
+              } else {
+                this.innerHTML = this.id + icon_desc;
+              }
+              populate_table_body();
+            });
+          }
+          row.append(col);
+        }
+        thead.append(row);
+
+        populate_table_body();
+
+        // show last first ts
+        var first_ts = document.getElementById('first_ts');
+        var timestamp = usage_data['first_ts'];
+        var date = new Date(timestamp * 1000);
+        first_ts.innerHTML = date.toLocaleString();
+
+        // show last update ts
+        var last_update = document.getElementById('last_update');
+        var timestamp = usage_data['created'];
+        var date = new Date(timestamp * 1000);
+        last_update.innerHTML = date.toLocaleString();
+      }
+
+      function populate_table_body(keyword='') {
+        var r = 0;
+        var u = 0;
+        var routers_table = document.getElementById('routers');
+        var usages = usage_data['usages'];
+        var tbody = routers_table.getElementsByTagName('tbody')[0]
+
+        // clean table first
+        while (tbody.firstChild) {
+          tbody.removeChild(tbody.firstChild);
+        }
+
+        if (keyword != '') {
+          filter_keyword = keyword;
+        }
+
+        // sort usage data
+        function compare(a, b) {
+          var sign = order_asc ? 1 : -1;  // ascending or descending?
+          var value_a = a[2][order_col];
+          var value_b = b[2][order_col];
+          if (typeof value_a == 'undefined' && typeof value_b == 'undefined') {
+            return 0;
+          }
+          // undef is always smaller
+          if (typeof value_a == 'undefined') return -1 * sign;
+          if (typeof value_b == 'undefined') return  1 * sign;
+
+          if (value_a > value_b) return  1 * sign;
+          if (value_b > value_a) return -1 * sign;
+          return 0;
+        }
+        usages.sort(compare);
+
+        while (r < limit) {
+          // check if usage_data has remaining elements
+          var usage = usages[u];
+          u++;
+          if (usages.length < u) {
+            break;
+          }
+
+          if (filter_keyword != '') {
+            if (! usage[0].includes(filter_keyword) && ! usage[1].includes(filter_keyword)) {
+              // keyword (filter) is not in router or node name
+              continue;
+            }
+          }
+
+          var row = document.createElement('tr');
+          for (var i = 0; i < interfaces.length; i++) {
+            var cell = document.createElement('td');
+            if (i < 2) { // add router and node name
+              cell.textContent = usage[i];
+            }
+            else {
+                var bytes = usage[2][interfaces[i]];
+                // if usage data for interface exist update cell content
+                if (typeof bytes !== 'undefined') {
+                  cell.textContent = humanFileSize(bytes);
+                }
+            }
+            row.appendChild(cell);
+          }
+          tbody.appendChild(row);
+          r++;
+        }
+      }
+
+      function set_limit(input_limit) {
+        limit = input_limit;
+        set_cookie_value('limit', limit);
+        populate_table_body();
+      }
+
+      function get_cookie_value(cookie) {
+         const value = document.cookie.match('(^|;)\\s*' + cookie + '\\s*=\\s*([^;]+)');
+         return value ? value.pop() : '';
+      }
+
+      function set_cookie_value(cookie, value) {
+        document.cookie = cookie + '=' + value + '; max-age=60*60*24*30 ; path=/';
+      }
+    </script>
+  </head>
+  <body onload="init_table()">
+    <div class="container">
+      <div class="card" style="margin: 1em">
+        <div class="card-header">
+          <div class="d-flex justify-content-between" style="padding: 16px; padding-bottom: 0;">
+            <div style="padding-right: 2em; padding-top: 5px">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5H11.5z" onclick="window.location.replace('/')"/>
+              </svg>
+            </div>
+            <div style="width: 70%; padding-right: 10em">
+              <form class="d-flex">
+                <input class="form-control me-2" autofocus="autofocus" placeholder="Filter" aria-label="Filter" oninput="populate_table_body(this.value)">
+              </form>
+            </div>
+            <div style="width: 30%">
+              <div class="row mb-3">
+                <label for="input_limit" class="col-sm-2 col-form-label">Limit</label>
+                <div class="col-sm-10">
+                  <input class="form-control" id="input_limit" placeholder="Limit" oninput="set_limit(this.value)">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <table class="table table-hover" id="routers">
+            <thead>
+            </thead>
+            <tbody>
+              <tr><td><span style="color:red">Could not load data.</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex justify-content-between">
+            <div>Time period starts at: <span id="first_ts"></span></div>
+            <div>Last update: <span id="last_update"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
