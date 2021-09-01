@@ -20,7 +20,7 @@ To create a menu entry in the 128T UI the following file has to be added (insert
 
 ```
 $ sudo mkdir -p /etc/128technology/thirdparty/ui-links
-$ echo '{ "name": "Interface Usage", "url": "https://<conductor fqdn or ip address>/t128-interface-usage/" }' | \
+$ echo '{ "name": "Interface Usage", "url": "https://<conductor fqdn or ip address>/t128-interface-usage/index.html" }' | \
 sudo tee /etc/128technology/thirdparty/ui-links/t128-interface-usage.json > /dev/null
 ```
 
