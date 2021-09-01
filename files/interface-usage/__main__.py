@@ -103,9 +103,9 @@ def main():
                 last_bucket = []
                 try:
                     if buckets[router][node][interface]:
-                        last_bucket = buckets[router][node][interface].pop()
                         # get first bucket's ts for this interface
                         ts = buckets[router][node][interface][0][0][0]
+                        last_bucket = buckets[router][node][interface].pop()
                         if ts < first_ts:
                             first_ts = ts
                 except (KeyError, IndexError):
