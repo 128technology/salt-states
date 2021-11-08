@@ -140,22 +140,6 @@ class RestGraphqlApi(object):
         self.node_name = request.json()[0]['name']
         return self.node_name
 
-    # def get_device_interfaces(self, router_name, node_name):
-    #     request = self.get('/router/{}/node/{}/deviceInterface'.format(
-    #         router_name, node_name))
-    #     if request.status_code == 200:
-    #         return request.json()
-    #     else:
-    #         return []
-    #
-    # def get_network_interfaces(self, router_name, node_name, device_name):
-    #     request = self.get('/router/{}/node/{}/deviceInterface/{}/networkInterface'.format(
-    #         router_name, node_name, device_name))
-    #     if request.status_code == 200:
-    #         return request.json()
-    #     else:
-    #         return []
-    #
     def get_interfaces(self):
         _query = '{ allRouters { nodes { name nodes { nodes { name deviceInterfaces { nodes { name type } } } } } } }'
         request = self.query(_query)
@@ -165,16 +149,34 @@ class RestGraphqlApi(object):
             return []
 
     def get_interface_usage(self, router, node, interface):
-        query = '''{ metrics { interface { %(kpi)s {
-                      bytes(router: "%(router)s", node: "%(node)s", port: "%(interface)s") {
-                      timeseries(startTime: "now-10") { timestamp value } } } } } }'''
-        stats = [int(time.time())]
-        for kpi in ('received', 'sent'):
-            result = self.query(query % locals())
-            # print('result:', result.json())
-            try:
-                value = int(extract(result.json(), 'value'))
-            except (TypeError, IndexError):
-                return None
-            stats.append(value)
-        return tuple(stats)
+        query = '''
+            {
+              metrics {
+                interface {
+                  received {
+                    bytes(router: "%(router)s", node: "%(node)s", port: "%(interface)s") {
+                      timeseries(startTime: "now-10") {
+                        timestamp
+                        value
+                      }
+                    }
+                  }
+                  sent {
+                    bytes(router: "%(router)s", node: "%(node)s", port: "%(interface)s") {
+                      timeseries(startTime: "now-10") {
+                        timestamp
+                        value
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        '''
+        data = self.query(query % locals()).json()
+        try:
+             received = int(extract(extract(data, 'received'), 'value'))
+             sent = int(extract(extract(data, 'sent'), 'value'))
+        except (TypeError, IndexError):
+             return None
+        return (int(time.time()), received, sent)
