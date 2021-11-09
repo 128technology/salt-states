@@ -12,6 +12,7 @@
     }
     </style>
     <script type="text/javascript">
+      var meta_data;
       var usage_data;
       var interfaces;
       var limit = 20;
@@ -55,6 +56,19 @@
           }
       }
 
+      function fetch_meta_data() {
+        var url = 't128-interface-usage-meta.json';
+        var request = new XMLHttpRequest();
+        request.open('GET', url);
+        request.responseType = 'json';
+        request.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
+        request.send();
+        request.onload = function() {
+          meta_data = request.response;
+          fetch_usage_data(populate_table_header);
+        }
+      }
+
       function fetch_usage_data(callback) {
         var url = 't128-interface-usages.json';
         var request = new XMLHttpRequest();
@@ -84,7 +98,7 @@
       function init_table() {
         check_authentication();
 
-        fetch_usage_data(populate_table_header);
+        fetch_meta_data();
         // retrieve limit = number of rows
         const query_string = window.location.search;
         const url_params = new URLSearchParams(query_string);
@@ -105,7 +119,7 @@
         var routers_table = document.getElementById('routers');
         var thead = routers_table.getElementsByTagName('thead')[0];
         var row = document.createElement('tr');
-        var fixed_columns = ['router', 'node'];
+        var fixed_columns = ['router', 'node', 'description', 'location'];
 
         interfaces = fixed_columns.concat(usage_data['interfaces']);
         for (var i=0; i<interfaces.length; i++) {
@@ -163,9 +177,7 @@
           tbody.removeChild(tbody.firstChild);
         }
 
-        if (keyword != '') {
-          filter_keyword = keyword;
-        }
+        filter_keyword = keyword;
 
         // sort usage data
         function compare(a, b) {
@@ -186,16 +198,29 @@
         usages.sort(compare);
 
         while (r < limit) {
-          // check if usage_data has remaining elements
           var usage = usages[u];
+          // check if usage_data has remaining elements
           u++;
           if (usages.length < u) {
             break;
           }
 
+          var meta = meta_data[usage[0]];
           if (filter_keyword != '') {
-            if (! usage[0].includes(filter_keyword) && ! usage[1].includes(filter_keyword)) {
-              // keyword (filter) is not in router or node name
+            var field;
+            var search_fields = [usage[0], usage[1]].concat(meta);
+            var found = false;
+            for (var i = 0; i < search_fields.length; i++) {
+              field = search_fields[i];
+              if (field == null) {
+                continue;
+              }
+              if (field.toLowerCase().includes(filter_keyword.toLowerCase())) {
+                found = true;
+                break;
+              }
+            }
+            if (! found) {
               continue;
             }
           }
@@ -203,8 +228,18 @@
           var row = document.createElement('tr');
           for (var i = 0; i < interfaces.length; i++) {
             var cell = document.createElement('td');
-            if (i < 2) { // add router and node name
+            if (i == 0) { // router name
+              var router_name = usage[i];
+              link = document.createElement('a');
+              link.innerHTML = router_name;
+              link.setAttribute('href', location.origin + '/routers/' + router_name);
+              cell.appendChild(link);
+            }
+            if (i == 1) { // node name
               cell.textContent = usage[i];
+            }
+            if (i > 1 && i < 4) { // add description and location
+              cell.textContent = meta[i-2];
             }
             else {
                 var bytes = usage[2][interfaces[i]];

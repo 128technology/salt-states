@@ -13,10 +13,13 @@ from lib.api import RestGraphqlApi
 def parse_arguments():
     """Get commandline arguments."""
     parser = argparse.ArgumentParser(
-        description='Run speedtest and write results to json file.')
+        description='Collect and aggregate interface statistics.')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--host', default='localhost')
     parser.add_argument('--log-file', default=log.LOGFILE)
+    parser.add_argument('--generate-meta-file', action='store_true')
+    parser.add_argument('--meta-file',
+                        default='/var/www/128technology/t128-interface-usage/t128-interface-usage-meta.json')
     parser.add_argument('--buckets-file',
                         default='/var/lib/128technology/t128-interface-usage-buckets.json')
     parser.add_argument('--usages-file',
@@ -37,6 +40,12 @@ def read_buckets(filename):
     except FileNotFoundError:
         return {}
 
+
+def write_meta(filename, meta):
+    with open(filename, 'w') as fd:
+        return json.dump(meta, fd)
+
+
 def write_buckets(filename, buckets):
     with open(filename, 'w') as fd:
         return json.dump(buckets, fd)
@@ -53,6 +62,14 @@ def write_usages(filename, first_ts, interfaces, usages):
         }, fd)
 
 
+def get_meta_data(filename, api):
+    fields = ['description', 'location']
+    meta = {}
+    for router in api.get_routers():
+        meta[router['name']]=[v for k,v in router.items() if k in fields]
+    write_meta(filename, meta)
+
+
 def main():
     args = parse_arguments()
     log.DEBUG = args.debug
@@ -60,6 +77,11 @@ def main():
     blacklisted_interfaces = args.blacklisted_interfaces.split(',')
     blacklisted_routers = args.blacklisted_routers.split(',')
     api = RestGraphqlApi(args.host)
+
+    # run script in meta file generator mode
+    if args.generate_meta_file:
+        get_meta_data(args.meta_file, api)
+        return
 
     # Iterate over all routers and retrieve interface usage stats
     interfaces = []

@@ -40,6 +40,10 @@ By default there is no configuration needed. The `t128-interface-usage-collector
 $ sudo vi /srv/salt/files/interface-usage/t128-interface-usage-collector.sh
 ...
 script=/srv/salt/files/t128-interface-usage.pyz
+
+# create meta data
+$script --generate-meta-file
+
 # start new statistics capture - ensure buckets are reset every month
 options=--buckets-file t128-interface-usage-buckets-$(date '+%Y%m').json
 
@@ -69,7 +73,7 @@ options="$options --base-interfaces WAN1,WAN2,LTE1,LAN1"
 ## Build .pyz File (only needed for development)
 The .pyz file is a [compressed python archive](https://docs.python.org/3/library/zipapp.html) (similar to .jar files in the Java universe) which allows it to execute the main python script inside the archive, but at the same time split up modules into separate files/folders (aka modules).
 
-The source code at [salt-states/files/interface-usage](https://github.com/128technology/salt-states/blob/master/files/interface-usage) comes with a script `create_pyz.oy` that creates the archives based on the source files.
+The source code at [salt-states/files/interface-usage](https://github.com/128technology/salt-states/blob/master/files/interface-usage) comes with a script `create_pyz.py` that creates the archive based on the source files.
 
 ```
 $ cd salt-states/files/interface-usage
